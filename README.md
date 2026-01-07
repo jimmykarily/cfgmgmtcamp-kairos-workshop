@@ -15,3 +15,11 @@ This repository is meant to guide the participants of the ["From Zero to Immutab
   - [Stage 4: Upgrading your cluster manually](stage-4.md)
   - [Stage 5: Deploying a multi-node cluster](stage-5.md)
   - [Stage 6: Upgrading your cluster through Kubernetes](stage-6.md)
+- Optional Advanced Topics
+  - [Build an air-gapped cluster](air-gapped.md)
+  - [Perform a hybrid-cloud deployment](hybrid-cloud-deployment.md)
+  - [PXE/netboot cluster bootstrapping](pxe-netboot-bootstrapping.md)
+  - [Trusted Boot with TPM/UEFI for maximum security](trusted-boot.md)
+  - [Deploying an HA multi-node cluster](ha-multi-node.md)
+  - [Deploying a multi-node self-coordinating cluster](ha-multi-node-auto.md)
+  - [Raspberry Pi deployments](raspberry.md)
