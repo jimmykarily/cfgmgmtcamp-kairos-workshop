@@ -10,6 +10,10 @@ Go to: https://github.com/new and create a new repository under your account.
 
 Follow the instructions to clone the repository locally.
 
+## Add your Dockerfile
+
+You need a `Dockerfile` at the root of your repository. Use the Dockerfile from [stage-2](stage-2.md#prepare-your-base-image) as a starting point. The workflow references this file at `dockerfile_path: Dockerfile`.
+
 ## Create a simple release pipeline
 
 ```bash

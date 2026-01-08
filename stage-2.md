@@ -5,7 +5,7 @@ Docs:
 
 ## Prepare your base image
 
-Add some packages to the dockerfile below and then build the image:
+Add some packages to the Dockerfile below and then build the image:
 
 ```Dockerfile
 ARG BASE_IMAGE=ubuntu:22.04
