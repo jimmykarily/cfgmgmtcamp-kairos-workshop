@@ -5,7 +5,8 @@ Docs:
 
 ## Prepare your base image
 
-Add some packages to the Dockerfile below and then build the image:
+Add some packages to the Dockerfile below and then build the image (better keep
+`git` in the package list. That will prove useful in [stage-6](stage-6.md)).
 
 ```Dockerfile
 ARG BASE_IMAGE=ubuntu:22.04
@@ -16,7 +17,7 @@ FROM ${BASE_IMAGE} AS base-kairos
 
 # Add your packages here. There are some examples.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl vim htop && \
+    apt-get install -y --no-install-recommends curl vim htop git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
