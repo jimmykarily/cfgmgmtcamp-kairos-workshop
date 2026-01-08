@@ -44,8 +44,44 @@ qemu-system-x86_64 \
     -device virtio-blk-pci,drive=disk1,bootindex=0 \
     -drive id=cdrom1,if=none,media=cdrom,file="kairos.iso" \
     -device ide-cd,drive=cdrom1,bootindex=1 \
-   -boot menu=on
+    -boot menu=on
 
 # To exit: CTRL^A -> x
 # To cleanup: rm kairos.img
 ```
+
+## Deploy Kairos
+
+- SSH to the virtual machine
+- Create a basic Kairos config:
+
+  ```bash
+  cat > config.yaml <<EOF
+  #cloud-config
+  users:
+    - name: kairos
+      passwd: kairos
+      groups:
+        - admin
+
+  install:
+    reboot: true
+
+  k3s:
+    enabled: true
+  EOF
+  ```
+
+- Install Kairos:
+  ```bash
+  kairos-agent manual-install config.yaml
+  ```
+
+- Check that Kubernetes is running (from within the VM):
+
+  ```bash
+  export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+  kubectl get nodes
+  ```
+
+✅ Done! 🎉
