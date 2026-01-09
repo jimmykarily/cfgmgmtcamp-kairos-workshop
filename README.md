@@ -16,7 +16,7 @@ This repository is meant to guide the participants of the ["From Zero to Immutab
   - [Stage 5: Deploying a multi-node cluster](stage-5.md)
   - [Stage 6: Upgrading your cluster through Kubernetes](stage-6.md)
 - Optional Advanced Topics
-  - [Build an air-gapped cluster](air-gapped.md)
+  - [Build an air-gapped cluster](https://kairos.io/docs/examples/airgap/)
   - [Perform a hybrid-cloud deployment](hybrid-cloud-deployment.md)
   - [PXE/netboot cluster bootstrapping](pxe-netboot-bootstrapping.md)
   - [Trusted Boot with TPM/UEFI for maximum security](trusted-boot.md)
