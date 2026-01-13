@@ -6,12 +6,12 @@ Docs:
 ## Get a pre-built ISO
 
 aarch64:
-  - TODO: hadron link
-  - TODO: fedora link (or other)
+  - TODO: Add hadron arm link as soon as we got one
+  - [kairos-fedora-40-standard-arm64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-fedora-40-standard-arm64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso)
 
 amd64:
-  - TODO: hadron link
-  - TODO: fedora link (or other)
+  - [kairos-hadron-0.0.1-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-hadron-0.0.1-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso)
+  - [kairos-fedora-40-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-fedora-40-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso)
 
 ## Create a Virtual Machine
 
