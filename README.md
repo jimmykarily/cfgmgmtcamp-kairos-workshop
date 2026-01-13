@@ -18,8 +18,8 @@ This repository is meant to guide the participants of the ["From Zero to Immutab
 - Optional Advanced Topics
   - [Build an air-gapped cluster](https://kairos.io/docs/examples/airgap/)
   - [Perform a hybrid-cloud deployment](hybrid-cloud-deployment.md)
-  - [PXE/netboot cluster bootstrapping](pxe-netboot-bootstrapping.md)
-  - [Trusted Boot with TPM/UEFI for maximum security](trusted-boot.md)
-  - [Deploying an HA multi-node cluster](ha-multi-node.md)
-  - [Deploying a multi-node self-coordinating cluster](ha-multi-node-auto.md)
-  - [Raspberry Pi deployments](raspberry.md)
+  - [PXE/netboot cluster bootstrapping](https://kairos.io/docs/installation/netboot/)
+  - [Trusted Boot with TPM/UEFI for maximum security](https://kairos.io/quickstart/trusted-boot)
+  - [Deploying an HA multi-node cluster](https://kairos.io/docs/examples/ha)
+  - [Deploying a multi-node self-coordinating cluster](https://kairos.io/docs/examples/multi-node-p2p-ha)
+  - [Raspberry Pi deployments](https://kairos.io/docs/installation/raspberry)
