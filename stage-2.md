@@ -15,7 +15,7 @@ FROM quay.io/kairos/kairos-init:v0.6.2 AS kairos-init
 
 FROM ${BASE_IMAGE} AS base-kairos
 
-# Add your packages here. There are some examples.
+# Add your packages here. These are some examples:
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl vim htop git && \
     apt-get clean && \
@@ -53,6 +53,8 @@ docker run -it --rm \
   quay.io/kairos/auroraboot:latest \
   build-iso --output /result kairos-custom:latest
 ```
+
+If the build is successful, you should find the ISO file in the `$PWD/build` directory.
 
 ## Run it
 
