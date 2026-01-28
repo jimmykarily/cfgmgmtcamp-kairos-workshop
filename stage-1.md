@@ -79,7 +79,7 @@ If the system booted correctly, you should see a screen like this:
 > [!TIP]
 > The default installer also starts a web installer in the background, depending on the network you have configured in your virtualization system, you should be able to access http://IP:8080 and do the installation from there
 
-Anotate the IP at the bottom to ssh into the system in the next step
+Annotate the IP at the bottom to ssh into the system in the next step
 
 ## Manual Installation
 
