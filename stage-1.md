@@ -7,13 +7,16 @@ Docs:
 
 aarch64:
   - TODO: Add hadron arm link as soon as we got one
-  - [kairos-fedora-40-standard-arm64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-fedora-40-standard-arm64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso)
+  - [kairos-fedora-40-standard-arm64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-fedora-40-standard-arm64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso) (517M)
 
 amd64:
-  - [kairos-hadron-0.0.1-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-hadron-0.0.1-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso)
-  - [kairos-fedora-40-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-fedora-40-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso)
+  - [kairos-hadron-0.0.1-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-hadron-0.0.1-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso) (396M)
+  - [kairos-fedora-40-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-fedora-40-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso) (539M)
 
 ## Create a Virtual Machine
+
+> [!IMPORTANT]
+> The hadron images used here are BIOS only. When creating the VM, make sure the firmware is set to BIOS and not to UEFI. If you want to use UEFI images, check out hadron Trusted Boot
 
 Options:
 
@@ -22,7 +25,15 @@ Options:
 3. Host Proxmox locally?
 4. Public cloud provider
 
-Quickest path to success:
+## Quickest path to success:
+
+> [!NOTE]
+> In order to run the following scripts `qemu` and `qemu-img` must be installed. 
+
+> [!WARNING]
+> When running this script, you get initiated in a serial console. Services like the interactive installer only run on the graphical console, so even if you select it, you will land on a new terminal and not the installer. If this is the case, just follow the manual installion instructions below.
+
+Create a disk and boot a VM with the disk and iso attached:
 
 ```bash
 # Create a disk image
@@ -50,38 +61,90 @@ qemu-system-x86_64 \
 # To cleanup: rm kairos.img
 ```
 
-## Deploy Kairos
+The first thing you will see is the bootloader menu, which will offer different options to install, recover or debug a system. Either select (press enter) or it will be automatically selected after a few seconds.
 
-- SSH to the virtual machine
-- Create a basic Kairos config:
+```
+ │*Kairos                                                                     │
+ │ Kairos (manual)                                                            │
+ │ kairos (interactive install)                                               │
+ │ Kairos (remote recovery mode)                                              │
+ │ Kairos (boot local node from livecd)                                       │
+ │ Kairos (debug)
+```
 
-  ```bash
-  cat > config.yaml <<EOF
-  #cloud-config
-  users:
-    - name: kairos
-      passwd: kairos
-      groups:
-        - admin
+If the system booted correctly, you should see a screen like this:
 
-  install:
-    reboot: true
+<img width="554" height="711" alt="Screenshot 2026-01-27 at 20 35 01" src="https://github.com/user-attachments/assets/6e5e0a15-1453-4435-9878-449afd7070a4" />
 
-  k3s:
-    enabled: true
-  EOF
-  ```
+> [!TIP]
+> The default installer also starts a web installer in the background, depending on the network you have configured in your virtualization system, you should be able to access http://IP:8080 and do the installation from there
 
-- Install Kairos:
-  ```bash
-  kairos-agent manual-install config.yaml
-  ```
+Annotate the IP at the bottom to ssh into the system in the next step
 
-- Check that Kubernetes is running (from within the VM):
+## Manual Installation
 
-  ```bash
-  export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-  kubectl get nodes
-  ```
+SSH to the virtual machine with the IP from the previous step using the password "kairos" (without the quotes)
 
+```
+ssh kairos@IP
+```
+
+Create a basic Kairos config:
+
+```bash
+cat > config.yaml <<EOF
+#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+    groups:
+      - admin
+
+install:
+  reboot: true
+
+k3s:
+  enabled: true
+EOF
+```
+
+Install Kairos:
+
+```bash
+kairos-agent manual-install config.yaml
+```
+
+If the installation was successful the machine should auto-reboot and menu should look differently. The first item is the active image and default one, that's all you need to know for now. Select it (press enter) or let it auto select after a few seconds.
+
+```
+ │*Kairos                                                                     │
+ │ Kairos (fallback)                                                          │
+ │ Kairos recovery                                                            │
+ │ Kairos state reset (auto)                                                  │
+ │ Kairos remote recovery
+```
+
+Log in with the user we created (user: kairos, password: kairos).
+
+Turn into root
+
+```bash
+sudo su -i
+```
+
+Check that Kubernetes is running (from within the VM):
+
+> [!TIP]
+> k3s configuration is located under `/etc/rancher/k3s/k3s.yaml`
+
+```bash
+kubectl get nodes
+```
+
+You should see an output like this one:
+
+```
+NAME          STATUS   ROLES                  AGE     VERSION
+kairos-e0a8   Ready    control-plane,master   6m38s   v1.32.10+k3s1
+```
 ✅ Done! 🎉
