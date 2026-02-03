@@ -11,7 +11,7 @@ aarch64:
 
 amd64:
   - [kairos-hadron-0.0.1-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-hadron-0.0.1-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (380M)
-  - [kairos-hadron-0.0.1-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-hadron-0.0.1-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (535M)
+  - [kairos-fedora-40-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-fedora-40-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (535M)
 
 ## Create a Virtual Machine
 
