@@ -6,12 +6,12 @@ Docs:
 ## Get a pre-built ISO
 
 aarch64:
-  - TODO: Add hadron arm link as soon as we got one
-  - [kairos-fedora-40-standard-arm64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-fedora-40-standard-arm64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso) (517M)
+  - [kairos-hadron-0.0.1-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-hadron-0.0.1-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (357M)
+  - [kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (514M)
 
 amd64:
-  - [kairos-hadron-0.0.1-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-hadron-0.0.1-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso) (396M)
-  - [kairos-fedora-40-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.6.1-beta2/kairos-fedora-40-standard-amd64-generic-v3.6.1-beta2-k3sv1.32.10+k3s1.iso) (539M)
+  - [kairos-hadron-0.0.1-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-hadron-0.0.1-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (380M)
+  - [kairos-hadron-0.0.1-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-hadron-0.0.1-standard-amd64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (535M)
 
 ## Create a Virtual Machine
 
