@@ -5,6 +5,9 @@ Docs:
 
 ## Prepare your base image
 
+> [!NOTE]
+> This step has to be run locally or in your pipeline, not in the Kairos VM.
+
 Add some packages to the Dockerfile below and then build the image (better keep
 `git` in the package list. That will prove useful in [stage-6](stage-6.md)).
 
