@@ -30,6 +30,9 @@ Options:
 > [!NOTE]
 > In order to run the following scripts `qemu` and `qemu-img` must be installed. 
 
+> [!IMPORTANT]
+> On MacOS/UTM you have to select the default virtio-gpu-pci Display. When booting, edit the Grub config and remove the `nomodeset` option. Then it shold boot fine. 
+
 > [!WARNING]
 > When running this script, you get initiated in a serial console. Services like the interactive installer only run on the graphical console, so even if you select it, you will land on a new terminal and not the installer. If this is the case, just follow the manual installion instructions below.
 
