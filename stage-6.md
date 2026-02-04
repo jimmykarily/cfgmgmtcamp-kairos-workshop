@@ -23,7 +23,24 @@ If you have `git` available, you can install the Kairos operator with the follow
 kubectl apply -k https://github.com/kairos-io/kairos-operator/config/default
 ```
 
-A workaround, if you don't have git, is to clone the [kairos-operator repository](https://github.com/kairos-io/kairos-operator) to your host system and the `scp` the directory inside the virtual machine. Then install the kairos-operator using the following command from the root directory of the repository:
+### Alternative: Without git (e.g., Hadron-based images)
+
+If you're using a Hadron-based image (or any image without `git`), you can download
+the kairos-operator tarball directly with `curl` and apply it:
+
+```bash
+# Download and extract the kairos-operator
+curl -sL https://github.com/kairos-io/kairos-operator/archive/refs/heads/main.tar.gz | tar -xz -C /tmp
+
+# Deploy the operator
+kubectl apply -k /tmp/kairos-operator-main/config/default
+```
+
+This method uses `curl` (which is available on Hadron) instead of `git`.
+
+### Alternative: Copy from host
+
+Another workaround is to clone the [kairos-operator repository](https://github.com/kairos-io/kairos-operator) to your host system and then `scp` the directory inside the virtual machine. Then install the kairos-operator using the following command from the root directory of the repository:
 
 ```bash
 kubectl apply -k config/default
