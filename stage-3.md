@@ -39,9 +39,6 @@ jobs:
       security-events: write
       packages: write
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@main
-    secrets:
-      registry_username: ${{ github.repository_owner }}
-      registry_password: ${{ secrets.GITHUB_TOKEN }}
     with:
       dockerfile_path: Dockerfile
       base_image: ubuntu:24.04
@@ -65,9 +62,6 @@ jobs:
       trivy: false
       grype_sarif: false
       trivy_sarif: false
-      registry_domain: ghcr.io
-      registry_namespace: ${{ github.repository_owner }}
-      registry_repository: kairos-custom
       custom_tag_format: ${{ github.event.release.tag_name }}
       summary_artifacts: false
       auroraboot_version: latest
