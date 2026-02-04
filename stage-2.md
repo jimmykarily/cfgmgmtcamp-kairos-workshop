@@ -90,10 +90,35 @@ RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
 docker build --progress plain -t kairos-custom:latest .
 ```
 
+## Alternative: Using Podman on MacOS
+
+Restart the Podman machine with rootful access.
+
+```bash
+podman machine stop
+podman machine set --rootful
+podman machine start
+```
+
+If you have build the `kairos-custom` Image before, you have to rebuild it after switching to rootful as seen above.
+
+Since Podman has issues using the local image, we will temporarily push it to a public registry.
+
+```bash
+podman tag localhost/kairos-custom ttl.sh/kairos-custom:24h
+podman push ttl.sh/kairos-custom:24h
+```
+
+Then we can use the public images to build the ISO
+
+```bash
+mkdir build && sudo podman run -it --rm -v /var/run/docker.sock:/var/run/docker.sock:Z -v $PWD/build:/result quay.io/kairos/auroraboot:latest build-iso --output /result ttl.sh/kairos-custom:24h
+```
+
 ## Create an ISO using AuroraBoot
 
 ```bash
-docker run -it --rm \
+mkdir build && docker run -it --rm \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v $PWD/build:/result \
   quay.io/kairos/auroraboot:latest \
