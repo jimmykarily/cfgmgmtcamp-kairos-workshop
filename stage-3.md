@@ -16,6 +16,9 @@ You need a `Dockerfile` at the root of your repository. Use the Dockerfile from 
 
 ## Create a simple release pipeline
 
+> [!IMPORTANT]
+> The `base_image` parameter in the workflow overrides any default set in your Dockerfile's `ARG BASE_IMAGE`. Make sure to set it to match the base image you want to use (e.g., `ubuntu:24.04` or `ghcr.io/kairos-io/hadron:v0.0.1` if using Hadron from [stage-2](stage-2.md#alternative-using-hadron-smaller-image)).
+
 ```bash
 
 mkdir -p .github/workflows/
