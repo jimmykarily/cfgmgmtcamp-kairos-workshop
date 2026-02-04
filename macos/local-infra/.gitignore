@@ -1,2 +1,6 @@
 # Local data directories (created by docker-compose)
 data/
+*.iso
+*.img
+*.qcow2
+*.fd

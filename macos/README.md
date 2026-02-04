@@ -8,7 +8,7 @@ The original workshop was designed with Linux tooling in mind (qemu with KVM, Do
 
 | Challenge | Original Approach | MacOS Solution |
 |-----------|-------------------|----------------|
-| VM creation | qemu with KVM | **VirtualBuddy** (native MacOS VM manager) |
+| VM creation | qemu with KVM | **QEMU with HVF** (Apple Hypervisor Framework) |
 | Container builds | Docker with socket mount | **Podman** in rootful mode |
 | Image registry | ttl.sh / quay.io | **Local registry** (localhost:5000) |
 | CI/CD pipeline | GitHub Actions | **Gitea** + **Argo Workflows** |
@@ -18,13 +18,13 @@ The original workshop was designed with Linux tooling in mind (qemu with KVM, Do
 Install the following on your Mac:
 
 ```bash
+# QEMU (VM manager with Apple Hypervisor Framework support)
+brew install qemu
+
 # Podman (container runtime)
 brew install podman
 podman machine init
 podman machine start
-
-# VirtualBuddy (VM manager) - Install from App Store or:
-brew install --cask virtualbuddy
 
 # Podman Compose (for local infrastructure)
 brew install podman-compose
@@ -38,9 +38,9 @@ Set up local Gitea and Registry services.
 → [local-infra/README.md](local-infra/README.md)
 
 ### Stage 1: Deploying a Single Node Cluster (MacOS)
-Create a Kairos VM using VirtualBuddy.
+Create a Kairos VM using QEMU with Apple Hypervisor Framework.
 
-→ [stage-1-macos.md](stage-1-macos.md) *(coming soon)*
+→ [stage-1-macos.md](stage-1-macos.md)
 
 ### Stage 2: Build Your Own Immutable OS (MacOS)
 Build custom Kairos images using Podman and push to local registry.
@@ -79,16 +79,16 @@ open http://localhost:8080   # Registry UI
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Gitea     │  │  Registry   │  │      VirtualBuddy       │  │
+│  │   Gitea     │  │  Registry   │  │       QEMU + HVF        │  │
 │  │  :3000      │  │   :5000     │  │                         │  │
 │  │             │  │             │  │  ┌───────────────────┐  │  │
 │  │  Git repos  │  │  Kairos     │  │  │   Kairos VM       │  │  │
-│  │  for ISO    │  │  images     │  │  │                   │  │  │
-│  │  configs    │  │             │  │  │  ┌─────────────┐  │  │  │
-│  └──────┬──────┘  └──────┬──────┘  │  │  │    K3s      │  │  │  │
+│  │  for ISO    │  │  images     │  │  │   :2222 → SSH     │  │  │
+│  │  configs    │  │             │  │  │   :6443 → K8s API │  │  │
+│  └──────┬──────┘  └──────┬──────┘  │  │  ┌─────────────┐  │  │  │
+│         │                │         │  │  │    K3s      │  │  │  │
 │         │                │         │  │  │             │  │  │  │
-│         │                │         │  │  │ Argo Workflows│ │  │  │
-│         └────────────────┼─────────┼──┼──│             │  │  │  │
+│         └────────────────┼─────────┼──┼──│ Argo Workflows│ │  │  │
 │                          │         │  │  └─────────────┘  │  │  │
 │                          │         │  │                   │  │  │
 │                          └─────────┼──┼───────────────────┘  │  │
@@ -101,9 +101,9 @@ open http://localhost:8080   # Registry UI
 
 | Stage | Original | MacOS Track |
 |-------|----------|-------------|
-| 1 | qemu/VirtualBox | VirtualBuddy |
+| 1 | qemu with KVM (Linux) | QEMU with HVF (Apple Hypervisor) |
 | 2 | Docker + ttl.sh | Podman + local registry |
 | 3 | GitHub Actions | Gitea + Argo Workflows |
 | 4 | Same | Same |
-| 5 | Same | VirtualBuddy for worker VMs |
+| 5 | Same | QEMU for worker VMs |
 | 6 | Same | Same |
