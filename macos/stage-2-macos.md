@@ -110,7 +110,7 @@ curl http://localhost:5000/v2/kairos-custom/tags/list
 # Expected: {"name":"kairos-custom","tags":["latest"]}
 ```
 
-You can also browse the image in the Registry UI at http://localhost:8080.
+You can also browse the image in the Registry UI at http://localhost:8000.
 
 ## Create an ISO Using AuroraBoot
 

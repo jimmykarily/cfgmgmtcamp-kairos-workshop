@@ -83,20 +83,19 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Registry UI (Optional) - Browse registry contents
+  # Registry UI - Browse registry contents
   # ---------------------------------------------------------------------------
-  # Web UI: http://localhost:8080
+  # Web UI: http://localhost:8000
+  # GitHub: https://github.com/Quiq/registry-ui
   # ---------------------------------------------------------------------------
   registry-ui:
-    image: joxit/docker-registry-ui:main
+    image: quiq/registry-ui
     container_name: kairos-registry-ui
     environment:
-      - SINGLE_REGISTRY=true
-      - REGISTRY_TITLE=Kairos Workshop Registry
-      - REGISTRY_URL=http://registry:5000
-      - DELETE_IMAGES=true
+      - REGISTRY_HOSTNAME=kairos-registry:5000
+      - REGISTRY_INSECURE=true
     ports:
-      - "8080:80"
+      - "8000:8000"
     depends_on:
       - registry
     restart: unless-stopped

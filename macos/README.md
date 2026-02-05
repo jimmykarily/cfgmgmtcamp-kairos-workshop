@@ -66,7 +66,7 @@ podman-compose up -d
 
 # 2. Verify services
 open http://localhost:3000   # Gitea
-open http://localhost:8080   # Registry UI
+open http://localhost:8000   # Registry UI
 
 # 3. Continue with Stage 1...
 ```
