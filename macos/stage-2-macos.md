@@ -18,14 +18,6 @@ podman-compose ps
 # kairos-registry should be running on :5000
 ```
 
-Ensure Podman is in rootful mode:
-
-```bash
-podman machine stop
-podman machine set --rootful
-podman machine start
-```
-
 ## Prepare Your Base Image
 
 ### 1. Create a Working Directory
@@ -42,7 +34,7 @@ Add packages you want in your custom OS. Keep `git` — it's needed for [Stage 6
 cat > Dockerfile <<'EOF'
 ARG BASE_IMAGE=ubuntu:22.04
 
-FROM quay.io/kairos/kairos-init:v0.6.2 AS kairos-init
+FROM quay.io/kairos/kairos-init:v0.7.0 AS kairos-init
 
 FROM ${BASE_IMAGE} AS base-kairos
 
@@ -75,8 +67,11 @@ EOF
 ### 3. Build the Image
 
 ```bash
-podman build --progress plain -t kairos-custom:latest .
+podman build --platform linux/amd64  -t kairos-custom:latest .
 ```
+
+> [!IMPORTANT]
+> `--platform linux/amd64` ensures the correct x86_64 architecture kernel is installed during the Kairosify step.
 
 > [!NOTE]
 > This build takes a while as it downloads and installs K3s and the Kairos components. Be patient.
@@ -284,20 +279,13 @@ EOF
 # Build and push
 podman build --progress plain -f Dockerfile.hadron -t kairos-custom-hadron:latest .
 podman tag localhost/kairos-custom-hadron:latest localhost:5000/kairos-custom-hadron:latest
+podman tag localhost/kairos-custom-hadron:latest ttl.sh/kairos-custom-hadron:1h
 podman push localhost:5000/kairos-custom-hadron:latest
+podman push ttl.sh/kairos-custom-hadron:1h
 ```
 
 ## Troubleshooting
 
-### Podman build fails with permission errors
-
-Ensure Podman is in rootful mode:
-
-```bash
-podman machine stop
-podman machine set --rootful
-podman machine start
-```
 
 ### Push to local registry fails
 
@@ -316,7 +304,8 @@ podman-compose up -d registry
 ```
 
 ### AuroraBoot can't reach local registry
-
+## Not working at the moment as AuroraBoot doesn’t support insecure registry
+## Having working certificate trusted by many containers would be too much a load for a workshop.
 Make sure you use `--network local-infra_default` and the container name `kairos-registry:5000` (not `localhost:5000`). Check the network name:
 
 ```bash

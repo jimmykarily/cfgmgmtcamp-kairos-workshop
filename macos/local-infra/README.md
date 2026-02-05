@@ -9,7 +9,7 @@ This folder contains the local services needed to run the Kairos workshop entire
 | **Gitea** | http://localhost:3000 | Local Git server (replaces GitHub) |
 | **Gitea DB** | (internal) | MySQL 8 database for Gitea |
 | **Registry** | http://localhost:5000 | Local container registry |
-| **Registry UI** | http://localhost:8080 | Browse registry contents |
+| **Registry UI** | http://localhost:8000 | Browse registry contents ([Quiq/registry-ui](https://github.com/Quiq/registry-ui)) |
 
 Data persistence:
 - Gitea and MySQL use Docker named volumes (`gitea-data`, `gitea-config`, `mysql-data`)
@@ -162,7 +162,7 @@ rm -rf ./data
 
 ### Port conflicts
 
-If ports 3000, 5000, or 8080 are already in use, edit `docker-compose.yml` and change the host port (left side of the colon):
+If ports 3000, 5000, or 8000 are already in use, edit `docker-compose.yml` and change the host port (left side of the colon):
 
 ```yaml
 ports:
