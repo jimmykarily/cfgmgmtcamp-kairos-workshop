@@ -66,8 +66,8 @@ services:
   # ---------------------------------------------------------------------------
   # Registry - Local Container Registry
   # ---------------------------------------------------------------------------
-  # Push: docker push localhost:5000/kairos-custom:latest
-  # Pull: docker pull localhost:5000/kairos-custom:latest
+  # Push: podman push --tls-verify=false localhost:5000/kairos-custom:latest
+  # Pull: podman pull --tls-verify=false localhost:5000/kairos-custom:latest
   # Data: ./data/registry/
   # ---------------------------------------------------------------------------
   registry:
@@ -107,3 +107,7 @@ volumes:
     driver: local
   mysql-data:
     driver: local
+
+networks:
+  kairos:
+    driver: bridge

@@ -278,7 +278,7 @@ EOF
 export KUBECONFIG=~/.kube/config-kairos
 kubectl get nodes
 ```
-
+#NOTES: not working Kairos might only listen to lookup interface from within the VM
 ## Helper Scripts
 
 Create these scripts in `~/kairos-workshop/` for convenience:

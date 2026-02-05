@@ -45,7 +45,7 @@ Create a Kairos VM using QEMU with Apple Hypervisor Framework.
 ### Stage 2: Build Your Own Immutable OS (MacOS)
 Build custom Kairos images using Podman and push to local registry.
 
-→ [stage-2-macos.md](stage-2-macos.md) *(coming soon)*
+→ [stage-2-macos.md](stage-2-macos.md)
 
 ### Stage 3: CI/CD with Gitea + Argo Workflows
 Replace GitHub Actions with local GitOps pipeline.

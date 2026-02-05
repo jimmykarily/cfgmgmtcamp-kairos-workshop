@@ -46,7 +46,7 @@ podman-compose up -d
 
 ```bash
 # Check containers
-docker compose ps
+podman-compose ps
 
 # Test registry
 curl http://localhost:5000/v2/_catalog
@@ -65,38 +65,12 @@ open http://localhost:3000
 3. Click **Install Gitea**
 4. Register your first user (this becomes the admin)
 
-### 4. Configure Docker/Podman for insecure registry
+### 4. Configure Podman for insecure registry
 
-Since we're using HTTP (not HTTPS) for the local registry, you need to configure your container runtime to allow insecure registries.
-
-#### Docker Desktop
-
-1. Open Docker Desktop → Settings → Docker Engine
-2. Add `localhost:5000` to the `insecure-registries` list:
-
-```json
-{
-  "insecure-registries": ["localhost:5000"]
-}
-```
-
-3. Click **Apply & Restart**
-
-#### Podman
-
-Edit `~/.config/containers/registries.conf`:
-
-```toml
-[[registry]]
-location = "localhost:5000"
-insecure = true
-```
-
-Then restart Podman:
+Since the registry runs over HTTP, use `--tls-verify=false` when pushing/pulling:
 
 ```bash
-podman machine stop
-podman machine start
+podman push --tls-verify=false localhost:5000/kairos-custom:latest
 ```
 
 ## Usage in Workshop
@@ -105,24 +79,46 @@ podman machine start
 
 ```bash
 # Tag your image for local registry
-docker tag kairos-custom:latest localhost:5000/kairos-custom:latest
+podman tag localhost/kairos-custom:latest localhost:5000/kairos-custom:latest
 
 # Push to local registry
-docker push localhost:5000/kairos-custom:latest
+podman push --tls-verify=false localhost:5000/kairos-custom:latest
 
 # Verify
 curl http://localhost:5000/v2/_catalog
 # Output: {"repositories":["kairos-custom"]}
 ```
 
-### Using local registry with AuroraBoot
+### Building ISOs with AuroraBoot
+
+> [!WARNING]
+> **Known limitation — HTTP registry + AuroraBoot + Podman on MacOS**:
+> - The local registry runs over HTTP. Podman on MacOS requires `--tls-verify=false` for HTTP registries because the insecure registry config lives inside the Podman machine VM, not on the host.
+> - AuroraBoot uses Go container libraries that default to HTTPS with no insecure registry flag. Adding self-signed certs to the registry solves Podman but not AuroraBoot — it would need patching to trust custom CAs.
+> - **Workaround**: Push to [ttl.sh](https://ttl.sh) (free, anonymous, temporary public registry) for ISO builds.
+
+A named volume avoids permission issues on MacOS:
 
 ```bash
-docker run -it --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $PWD/build:/result \
+# Push to ttl.sh (image expires after 1 hour)
+podman tag localhost/kairos-custom:latest ttl.sh/kairos-custom:1h
+podman push ttl.sh/kairos-custom:1h
+
+# Create a build volume
+podman volume create kairos-build
+
+# Build the ISO
+podman run --privileged -it --rm \
+  -v kairos-build:/result \
   quay.io/kairos/auroraboot:latest \
-  build-iso --output /result localhost:5000/kairos-custom:latest
+  build-iso --output /result ttl.sh/kairos-custom:1h
+
+# Extract the ISO
+mkdir -p ~/kairos-workshop/build
+podman run --rm \
+  -v kairos-build:/source:ro \
+  -v ~/kairos-workshop/build:/dest \
+  alpine sh -c "cp /source/*.iso /dest/ && ls -lh /dest/"
 ```
 
 ### Creating a repo in Gitea
@@ -175,7 +171,7 @@ ports:
 
 ### Registry push fails with "http: server gave HTTP response to HTTPS client"
 
-You need to configure the insecure registry (see step 4 above).
+Use `--tls-verify=false` on push/pull commands (see step 4 above).
 
 ### Gitea can't connect to database
 
