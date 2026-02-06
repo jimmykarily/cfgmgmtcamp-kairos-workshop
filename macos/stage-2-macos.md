@@ -67,11 +67,8 @@ EOF
 ### 3. Build the Image
 
 ```bash
-podman build --platform linux/amd64  -t kairos-custom:latest .
+podman build   -t kairos-custom:latest .
 ```
-
-> [!IMPORTANT]
-> `--platform linux/amd64` ensures the correct x86_64 architecture kernel is installed during the Kairosify step.
 
 > [!NOTE]
 > This build takes a while as it downloads and installs K3s and the Kairos components. Be patient.

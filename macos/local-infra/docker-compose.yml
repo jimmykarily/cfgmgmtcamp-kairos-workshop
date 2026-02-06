@@ -41,11 +41,12 @@ services:
       - GITEA__database__NAME=gitea
       - GITEA__database__USER=gitea
       - GITEA__database__PASSWD=gitea
+      - TZ=UTC
+    depends_on:
+      - gitea-db
     volumes:
       - gitea-data:/data
       - gitea-config:/etc/gitea
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
     ports:
       - "3000:3000"
       - "2222:2222"
