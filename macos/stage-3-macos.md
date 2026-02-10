@@ -22,22 +22,15 @@ Instead of GitHub + GitHub Actions, we use:
 - Local infrastructure running (Gitea + Registry from [Phase 0](local-infra/README.md))
 - `kubectl` configured to access your K3s cluster
 
-> [!IMPORTANT]
-> For Stage 3 workflows (especially ISO builds with artifact storage), increase the QEMU VM memory from 4GB to **8GB**:
-> ```bash
-> # In your QEMU command, change:
-> -m 4096
-> # To:
-> -m 8192
-> ```
+> [!NOTE]
+> The `start-master.sh` script already allocates **8GB RAM** for the master VM, which is required for Argo Workflows and ISO builds.
 
 ### Fix DNS in the VM (Important!)
 
 QEMU's usermode networking DNS (10.0.2.3) may not work reliably. Configure the VM to use public DNS:
 
 ```bash
-# SSH into the VM (port may vary: 2224 per docs, 2226 if using different QEMU config)
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost  # Adjust port as needed
+sshpass -p 'kairos' ssh -p 2226 kairos@localhost
 
 # Configure systemd-resolved to use Google DNS
 sudo mkdir -p /etc/systemd/resolved.conf.d

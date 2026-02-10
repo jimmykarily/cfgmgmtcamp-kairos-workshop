@@ -1,6 +1,85 @@
 # Local Infrastructure Setup (MacOS)
 
-This folder contains the local services needed to run the Kairos workshop entirely on MacOS without external dependencies like GitHub or public container registries.
+This folder contains the local services and scripts needed to run the Kairos workshop entirely on MacOS without external dependencies like GitHub or public container registries.
+
+## QEMU VM Scripts
+
+Helper scripts to easily manage Kairos VMs with QEMU:
+
+| Script | Purpose | Memory | SSH Port |
+|--------|---------|--------|----------|
+| `start-master.sh` | Launch master/control-plane VM | 8GB | 2226 |
+| `start-worker.sh` | Launch worker VM | 4GB | 2225 |
+
+### Quick Start
+
+```bash
+cd macos/local-infra
+
+# Start master VM (boot from existing disk)
+./start-master.sh
+
+# Start master VM with fresh install from ISO
+./start-master.sh --iso kairos-fedora.iso --create-disk
+
+# Start worker VM
+./start-worker.sh
+
+# Start worker with fresh install
+./start-worker.sh --iso kairos-fedora.iso --create-disk
+```
+
+### Master VM Options
+
+```bash
+./start-master.sh [OPTIONS]
+
+Options:
+  --disk PATH       Path to qcow2 disk image (default: kairos.qcow2)
+  --iso PATH        Path to ISO for installation (optional)
+  --create-disk     Create disk image if it doesn't exist
+  --memory MB       Memory in MB (default: 8192)
+  --cpus N          Number of CPUs (default: 2)
+
+Port Forwards:
+  SSH:           localhost:2226 -> VM:22
+  K3s API:       localhost:6444 -> VM:6443
+  Web Installer: localhost:8080 -> VM:8080
+```
+
+### Worker VM Options
+
+```bash
+./start-worker.sh [OPTIONS]
+
+Options:
+  --disk PATH       Path to qcow2 disk image (default: kairos-worker.qcow2)
+  --iso PATH        Path to ISO for installation (optional)
+  --create-disk     Create disk image if it doesn't exist
+  --memory MB       Memory in MB (default: 4096)
+  --cpus N          Number of CPUs (default: 2)
+  --ssh-port PORT   SSH port on host (default: 2225)
+  --name NAME       Worker name, affects default disk name (default: worker)
+
+Port Forwards:
+  SSH: localhost:2225 -> VM:22
+
+# Multiple workers example:
+./start-worker.sh --name worker2 --ssh-port 2227 --create-disk --iso kairos.iso
+```
+
+### Connecting to VMs
+
+```bash
+# SSH to master
+ssh -p 2226 kairos@localhost
+
+# SSH to worker
+ssh -p 2225 kairos@localhost
+
+# Or with sshpass (password: kairos)
+sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+```
 
 ## Services
 

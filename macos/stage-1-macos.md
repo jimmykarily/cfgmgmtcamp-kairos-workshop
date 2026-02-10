@@ -20,6 +20,12 @@ qemu-system-aarch64 --version
 qemu-img --version
 ```
 
+### Install sshpass (optional, for easier SSH)
+
+```bash
+brew install hudochenkov/sshpass/sshpass
+```
+
 ## Get a Pre-built ISO
 
 Since MacOS on Apple Silicon is ARM-based, download the **aarch64** (arm64) ISO:
@@ -28,8 +34,8 @@ Since MacOS on Apple Silicon is ARM-based, download the **aarch64** (arm64) ISO:
 - [kairos-hadron-0.0.1-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-hadron-0.0.1-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (357M) — Smaller, minimal image
 
 ```bash
-# Create a working directory
-mkdir -p ~/kairos-workshop && cd ~/kairos-workshop
+# Navigate to the local-infra directory
+cd macos/local-infra
 
 # Download the Fedora-based Kairos ISO
 curl -LO https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso
@@ -41,82 +47,25 @@ mv kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso kairos.iso
 > [!NOTE]
 > The Fedora-based image is recommended as it has better driver support for virtualized environments.
 
-## Create a Virtual Machine with QEMU
+## Create and Boot the VM
 
-### 1. Create a Disk Image
+We provide helper scripts to manage QEMU VMs easily. See [local-infra/README.md](local-infra/README.md) for details.
 
-```bash
-cd ~/kairos-workshop
-
-# Create a 60GB qcow2 disk image
-qemu-img create -f qcow2 kairos.qcow2 60G
-```
-
-### 2. Download UEFI Firmware
-
-QEMU on ARM requires UEFI firmware. Download the AAVMF (ARM UEFI) files:
+### 1. Boot the VM with ISO
 
 ```bash
-# Create firmware directory
-mkdir -p ~/kairos-workshop/firmware
+cd macos/local-infra
 
-# Download UEFI firmware for ARM64
-curl -L -o ~/kairos-workshop/firmware/QEMU_EFI.fd \
-  https://releases.linaro.org/components/kernel/uefi-linaro/latest/release/qemu64/QEMU_EFI.fd
+# Create disk and boot from ISO for fresh install
+./start-master.sh --iso kairos.iso --create-disk
 ```
 
-Or use the firmware bundled with QEMU (check your brew installation):
+This will:
+- Create a 60GB disk image (`kairos.qcow2`)
+- Boot from the ISO with 8GB RAM
+- Forward ports: SSH (2226), K3s API (6444), Web Installer (8080)
 
-```bash
-# Find QEMU's share directory
-ls $(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd
-```
-
-### 3. Boot the VM
-
-```bash
-cd ~/kairos-workshop
-
-# Start the VM with the ISO attached
-qemu-system-aarch64 \
-    -machine virt,accel=hvf,highmem=on \
-    -cpu host \
-    -smp 2 \
-    -m 4096 \
-    -bios $(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd \
-    -device virtio-gpu-pci \
-    -display default,show-cursor=on \
-    -device qemu-xhci \
-    -device usb-kbd \
-    -device usb-tablet \
-    -device virtio-net-pci,netdev=net0 \
-    -netdev user,id=net0,hostfwd=tcp::2224-:22,hostfwd=tcp::6443-:6443,hostfwd=tcp::8080-:8080 \
-    -drive file=kairos.qcow2,if=virtio,format=qcow2 \
-    -cdrom kairos.iso \
-    -boot d
-```
-
-**Key flags explained:**
-
-| Flag | Purpose |
-|------|---------|
-| `-machine virt,accel=hvf` | Use Apple Hypervisor Framework (native speed) |
-| `-cpu host` | Use host CPU features |
-| `-smp 2 -m 4096` | 2 CPUs, 4GB RAM |
-| `-bios ...edk2-aarch64-code.fd` | UEFI firmware for ARM64 |
-| `-netdev user,...hostfwd=tcp::2224-:22` | Port forward: localhost:2224 → VM:22 (SSH) |
-| `-netdev user,...hostfwd=tcp::6443-:6443` | Port forward: localhost:6443 → VM:6443 (K8s API) |
-| `-netdev user,...hostfwd=tcp::8080-:8080` | Port forward: localhost:8080 → VM:8080 (Web installer) |
-| `-cdrom kairos.iso` | Boot from ISO |
-| `-boot d` | Boot from CD-ROM first |
-
-> [!NOTE]
-> Port 2224 is used for SSH instead of 2222 because Gitea (from the local infrastructure) uses port 2222.
-
-> [!IMPORTANT]
-> The `accel=hvf` flag enables Apple's Hypervisor Framework for near-native performance. Without it, QEMU falls back to software emulation (very slow).
-
-### 4. Boot Menu and GRUB Configuration
+### 2. Boot Menu and GRUB Configuration
 
 When the VM boots, you'll see the Kairos bootloader menu:
 
@@ -146,8 +95,11 @@ After editing, select **Kairos** or press `Ctrl+X` to boot.
 Thanks to the port forwarding, you can SSH via localhost:
 
 ```bash
-ssh -p 2224 kairos@localhost
+ssh -p 2226 kairos@localhost
 # Password: kairos
+
+# Or with sshpass:
+sshpass -p 'kairos' ssh -p 2226 -o StrictHostKeyChecking=no kairos@localhost
 ```
 
 > [!TIP]
@@ -175,7 +127,7 @@ EOF
 ### 3. Run the Installation
 
 ```bash
-kairos-agent manual-install config.yaml
+sudo kairos-agent manual-install config.yaml
 ```
 
 The installation will:
@@ -192,26 +144,11 @@ The installation will:
 After installation, restart the VM **without** the ISO to boot from the installed disk:
 
 ```bash
-cd ~/kairos-workshop
+cd macos/local-infra
 
-qemu-system-aarch64 \
-    -machine virt,accel=hvf,highmem=on \
-    -cpu host \
-    -smp 2 \
-    -m 4096 \
-    -bios $(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd \
-    -device virtio-gpu-pci \
-    -display default,show-cursor=on \
-    -device qemu-xhci \
-    -device usb-kbd \
-    -device usb-tablet \
-    -device virtio-net-pci,netdev=net0 \
-    -netdev user,id=net0,hostfwd=tcp::2224-:22,hostfwd=tcp::6443-:6443,hostfwd=tcp::8080-:8080 \
-    -drive file=kairos.qcow2,if=virtio,format=qcow2
+# Boot from disk only (no ISO)
+./start-master.sh
 ```
-
-> [!TIP]
-> Create a shell script `start-kairos.sh` with this command for convenience.
 
 ### Boot Menu (Post-Install)
 
@@ -232,18 +169,14 @@ Select **Kairos** (the default) to boot into the installed system.
 ### 1. SSH into the Running System
 
 ```bash
-ssh -p 2224 kairos@localhost
-# Password: kairos
+sshpass -p 'kairos' ssh -p 2226 kairos@localhost
 ```
 
 ### 2. Check Kubernetes
 
 ```bash
-# Become root
-sudo -i
-
-# Check nodes
-kubectl get nodes
+# Check nodes (as root)
+sudo kubectl get nodes
 ```
 
 Expected output:
@@ -255,11 +188,11 @@ kairos-xxxx   Ready    control-plane,master   2m      v1.35.0+k3s1
 
 ### 3. Access Kubernetes from Mac (Optional)
 
-Since we forwarded port 6443, you can access the cluster directly from your Mac:
+Since we forwarded port 6444 → 6443, you can access the cluster directly from your Mac:
 
 ```bash
 # On the VM (as root), get the kubeconfig
-cat /etc/rancher/k3s/k3s.yaml
+sudo cat /etc/rancher/k3s/k3s.yaml
 ```
 
 Copy the content and save it on your Mac:
@@ -268,71 +201,51 @@ Copy the content and save it on your Mac:
 # On your Mac
 mkdir -p ~/.kube
 
-# Create the config file (paste content, change server to localhost:6443)
+# Create the config file (paste content, change server to localhost:6444)
 cat > ~/.kube/config-kairos <<EOF
 # Paste the k3s.yaml content here
-# Change: server: https://127.0.0.1:6443
+# Change: server: https://127.0.0.1:6444
 EOF
 
 # Test access
 export KUBECONFIG=~/.kube/config-kairos
 kubectl get nodes
 ```
-#NOTES: not working Kairos might only listen to lookup interface from within the VM
-## Helper Scripts
 
-Create these scripts in `~/kairos-workshop/` for convenience:
+## Script Options Reference
 
-### start-kairos.sh (Boot from disk)
+The `start-master.sh` script supports various options:
 
 ```bash
-#!/bin/bash
-cd ~/kairos-workshop
+./start-master.sh --help
 
-qemu-system-aarch64 \
-    -machine virt,accel=hvf,highmem=on \
-    -cpu host \
-    -smp 2 \
-    -m 4096 \
-    -bios $(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd \
-    -device virtio-gpu-pci \
-    -display default,show-cursor=on \
-    -device qemu-xhci \
-    -device usb-kbd \
-    -device usb-tablet \
-    -device virtio-net-pci,netdev=net0 \
-    -netdev user,id=net0,hostfwd=tcp::2224-:22,hostfwd=tcp::6443-:6443,hostfwd=tcp::8080-:8080 \
-    -drive file=kairos.qcow2,if=virtio,format=qcow2
+Options:
+  --disk PATH       Path to qcow2 disk image (default: kairos.qcow2)
+  --iso PATH        Path to ISO for installation (optional)
+  --create-disk     Create disk image if it doesn't exist
+  --memory MB       Memory in MB (default: 8192)
+  --cpus N          Number of CPUs (default: 2)
+
+Port Forwards:
+  SSH:           localhost:2226 -> VM:22
+  K3s API:       localhost:6444 -> VM:6443
+  Web Installer: localhost:8080 -> VM:8080
 ```
 
-### start-kairos-iso.sh (Boot from ISO for fresh install)
+### Examples
 
 ```bash
-#!/bin/bash
-cd ~/kairos-workshop
+# Boot existing master from disk
+./start-master.sh
 
-qemu-system-aarch64 \
-    -machine virt,accel=hvf,highmem=on \
-    -cpu host \
-    -smp 2 \
-    -m 4096 \
-    -bios $(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd \
-    -device virtio-gpu-pci \
-    -display default,show-cursor=on \
-    -device qemu-xhci \
-    -device usb-kbd \
-    -device usb-tablet \
-    -device virtio-net-pci,netdev=net0 \
-    -netdev user,id=net0,hostfwd=tcp::2224-:22,hostfwd=tcp::6443-:6443,hostfwd=tcp::8080-:8080 \
-    -drive file=kairos.qcow2,if=virtio,format=qcow2 \
-    -cdrom kairos.iso \
-    -boot d
-```
+# Fresh install from ISO
+./start-master.sh --iso kairos.iso --create-disk
 
-Make them executable:
+# Use a custom disk image
+./start-master.sh --disk kairos-custom.qcow2
 
-```bash
-chmod +x ~/kairos-workshop/start-kairos*.sh
+# Boot custom disk with ISO attached
+./start-master.sh --disk kairos-custom.qcow2 --iso build/custom.iso
 ```
 
 ## Troubleshooting
@@ -360,12 +273,12 @@ sysctl kern.hv_support
 
 ### VM is very slow
 
-Make sure `accel=hvf` is in your QEMU command. Without it, QEMU uses software emulation.
+Make sure `accel=hvf` is in your QEMU command. The scripts handle this automatically. Without it, QEMU uses software emulation.
 
 ### SSH connection refused
 
 1. Wait for the VM to fully boot (watch the QEMU window)
-2. Verify port forwarding: `lsof -i :2224`
+2. Verify port forwarding: `lsof -i :2226`
 3. Try connecting to the console directly via QEMU window
 
 ### SSH host key verification failed
@@ -373,29 +286,29 @@ Make sure `accel=hvf` is in your QEMU command. Without it, QEMU uses software em
 After reinstalling or rebooting the VM, the SSH host key changes. Remove the old key:
 
 ```bash
-ssh-keygen -R "[localhost]:2224"
+ssh-keygen -R "[localhost]:2226"
 ```
 
 Then reconnect:
 
 ```bash
-ssh -p 2224 kairos@localhost
+ssh -p 2226 kairos@localhost
 ```
 
 ### UEFI firmware not found
 
+The scripts automatically detect QEMU's firmware location. If it fails:
+
 ```bash
 # Check where QEMU installed its firmware
 ls $(brew --prefix qemu)/share/qemu/*.fd
-
-# Use the correct path in your -bios flag
 ```
 
 ### K3s not starting
 
 ```bash
 # SSH into the VM and check logs
-ssh -p 2224 kairos@localhost
+sshpass -p 'kairos' ssh -p 2226 kairos@localhost
 sudo journalctl -u k3s -f
 ```
 
@@ -404,9 +317,13 @@ sudo journalctl -u k3s -f
 To start fresh:
 
 ```bash
-cd ~/kairos-workshop
+cd macos/local-infra
+
+# Remove disk and create new one
 rm kairos.qcow2
-qemu-img create -f qcow2 kairos.qcow2 60G
+
+# Then reinstall
+./start-master.sh --iso kairos.iso --create-disk
 ```
 
 ## Next Steps

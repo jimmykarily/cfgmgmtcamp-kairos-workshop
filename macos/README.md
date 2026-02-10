@@ -52,10 +52,20 @@ Replace GitHub Actions with local GitOps pipeline.
 
 → [stage-3-macos.md](stage-3-macos.md) *(coming soon)*
 
-### Stages 4-6
-These stages work the same as the original workshop once you have a running cluster.
+### Stage 4: Manual Upgrades (MacOS)
+Perform A/B partition upgrades manually using `kairos-agent`.
 
-→ See [../stage-4.md](../stage-4.md), [../stage-5.md](../stage-5.md), [../stage-6.md](../stage-6.md)
+→ [stage-4-macos.md](stage-4-macos.md)
+
+### Stage 5: Multi-node Cluster (MacOS)
+Deploy a multi-node cluster with master and worker VMs.
+
+→ [stage-5-macos.md](stage-5-macos.md)
+
+### Stage 6: Kubernetes-based Upgrades (MacOS)
+Use the Kairos Operator for automated, Kubernetes-native OS upgrades.
+
+→ [stage-6-macos.md](stage-6-macos.md)
 
 ## Quick Start
 
@@ -68,8 +78,25 @@ podman-compose up -d
 open http://localhost:3000   # Gitea
 open http://localhost:8000   # Registry UI
 
-# 3. Continue with Stage 1...
+# 3. Download a Kairos ISO
+curl -LO https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso
+mv kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso kairos.iso
+
+# 4. Start the master VM
+./start-master.sh --iso kairos.iso --create-disk
+
+# 5. (Later) Start a worker VM
+./start-worker.sh --iso kairos.iso --create-disk
 ```
+
+### VM Launcher Scripts
+
+| Script | Purpose | Memory | SSH Port |
+|--------|---------|--------|----------|
+| `start-master.sh` | Master/control-plane VM | 8GB | 2226 |
+| `start-worker.sh` | Worker VM | 4GB | 2225 |
+
+See [local-infra/README.md](local-infra/README.md) for full script options.
 
 ## Architecture Overview
 
@@ -83,8 +110,8 @@ open http://localhost:8000   # Registry UI
 │  │  :3000      │  │   :5000     │  │                         │  │
 │  │             │  │             │  │  ┌───────────────────┐  │  │
 │  │  Git repos  │  │  Kairos     │  │  │   Kairos VM       │  │  │
-│  │  for ISO    │  │  images     │  │  │   :2222 → SSH     │  │  │
-│  │  configs    │  │             │  │  │   :6443 → K8s API │  │  │
+│  │  for ISO    │  │  images     │  │  │   :2226 → SSH     │  │  │
+│  │  configs    │  │             │  │  │   :6444 → K8s API │  │  │
 │  └──────┬──────┘  └──────┬──────┘  │  │  ┌─────────────┐  │  │  │
 │         │                │         │  │  │    K3s      │  │  │  │
 │         │                │         │  │  │             │  │  │  │

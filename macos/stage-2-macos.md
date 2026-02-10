@@ -10,10 +10,10 @@ Docs:
 
 ## Prerequisites
 
-Ensure your local registry is running (from [Phase 0](local-infra/README.md)):
+Ensure your local registry is running (from [local-infra](local-infra/README.md)):
 
 ```bash
-cd ~/github/cfgmgmtcamp-kairos-workshop/macos/local-infra
+cd macos/local-infra
 podman-compose ps
 # kairos-registry should be running on :5000
 ```
@@ -23,12 +23,12 @@ podman-compose ps
 ### 1. Create a Working Directory
 
 ```bash
-mkdir -p ~/kairos-workshop/custom-image && cd ~/kairos-workshop/custom-image
+mkdir -p macos/local-infra/custom-image && cd macos/local-infra/custom-image
 ```
 
 ### 2. Create the Dockerfile
 
-Add packages you want in your custom OS. Keep `git` — it's needed for [Stage 6](../stage-6.md).
+Add packages you want in your custom OS. Keep `git` — it's needed for [Stage 6](stage-6-macos.md).
 
 ```bash
 cat > Dockerfile <<'EOF'
@@ -67,7 +67,7 @@ EOF
 ### 3. Build the Image
 
 ```bash
-podman build   -t kairos-custom:latest .
+podman build -t kairos-custom:latest .
 ```
 
 > [!NOTE]
@@ -143,21 +143,22 @@ podman run --privileged -it --rm \
 
 ### 4. Extract the ISO
 
-Copy the ISO from the named volume to your local directory:
+Copy the ISO from the named volume to the build directory:
 
 ```bash
-mkdir -p ~/kairos-workshop/build
+cd macos/local-infra
+mkdir -p build
 
 podman run --rm \
   -v kairos-build:/source:ro \
-  -v ~/kairos-workshop/build:/dest \
+  -v $(pwd)/build:/dest \
   alpine sh -c "cp /source/*.iso /dest/ && ls -lh /dest/"
 ```
 
 ### 5. Verify
 
 ```bash
-ls -lh ~/kairos-workshop/build/*.iso
+ls -lh macos/local-infra/build/*.iso
 ```
 
 ### 6. Cleanup (optional)
@@ -169,44 +170,25 @@ podman volume rm kairos-build
 
 ## Run It
 
-Use the ISO with QEMU to create a new VM (same as [Stage 1](stage-1-macos.md)):
+Use the ISO with the VM launcher scripts:
 
 ```bash
-cd ~/kairos-workshop
+cd macos/local-infra
 
-# Create a fresh disk for the custom image
-qemu-img create -f qcow2 kairos-custom.qcow2 60G
+# Option 1: Create a new disk for the custom image
+./start-master.sh --disk kairos-custom.qcow2 --iso build/*.iso --create-disk
 
-# Boot from the custom ISO
-qemu-system-aarch64 \
-    -machine virt,accel=hvf,highmem=on \
-    -cpu host \
-    -smp 2 \
-    -m 4096 \
-    -bios $(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd \
-    -device virtio-gpu-pci \
-    -display default,show-cursor=on \
-    -device qemu-xhci \
-    -device usb-kbd \
-    -device usb-tablet \
-    -device virtio-net-pci,netdev=net0 \
-    -netdev user,id=net0,hostfwd=tcp::2225-:22,hostfwd=tcp::6444-:6443 \
-    -drive file=kairos-custom.qcow2,if=virtio,format=qcow2 \
-    -cdrom build/*.iso \
-    -boot d
+# Option 2: Use an existing disk with the new ISO
+./start-master.sh --disk kairos-custom.qcow2 --iso build/kairos-ubuntu-*.iso --create-disk
 ```
-
-> [!NOTE]
-> Different ports are used here (`2225`, `6444`) to avoid conflicts if your Stage 1 VM is still running.
 
 Follow the same installation steps from [Stage 1](stage-1-macos.md#install-kairos):
 
 ```bash
 # SSH into the custom image VM
-ssh -p 2225 kairos@localhost
-# Password: kairos
+sshpass -p 'kairos' ssh -p 2226 -o StrictHostKeyChecking=no kairos@localhost
 
-# Install
+# Create config and install
 cat > config.yaml <<EOF
 #cloud-config
 users:
@@ -222,13 +204,17 @@ k3s:
   enabled: true
 EOF
 
-kairos-agent manual-install config.yaml
+sudo kairos-agent manual-install config.yaml
 ```
 
-After reboot, verify your custom packages are available:
+After reboot, start the VM from disk and verify your custom packages:
 
 ```bash
-ssh -p 2225 kairos@localhost
+# Restart from disk (no ISO)
+./start-master.sh --disk kairos-custom.qcow2
+
+# SSH in and verify
+sshpass -p 'kairos' ssh -p 2226 kairos@localhost
 
 # Check that your custom packages are installed
 which vim
@@ -241,7 +227,7 @@ which git
 If you prefer a smaller base image, use [Hadron](https://github.com/kairos-io/hadron) instead of Ubuntu. Hadron has no package manager, resulting in significantly smaller images.
 
 > [!NOTE]
-> Since Hadron has no package manager, you cannot install additional packages like `git`. For [Stage 6](../stage-6.md), you'll need the alternative method to deploy the kairos-operator.
+> Since Hadron has no package manager, you cannot install additional packages like `git`. For [Stage 6](stage-6-macos.md), you'll need the alternative method to deploy the kairos-operator.
 
 ```bash
 cat > Dockerfile.hadron <<'EOF'
@@ -277,12 +263,11 @@ EOF
 podman build --progress plain -f Dockerfile.hadron -t kairos-custom-hadron:latest .
 podman tag localhost/kairos-custom-hadron:latest localhost:5000/kairos-custom-hadron:latest
 podman tag localhost/kairos-custom-hadron:latest ttl.sh/kairos-custom-hadron:1h
-podman push localhost:5000/kairos-custom-hadron:latest
+podman push --tls-verify=false localhost:5000/kairos-custom-hadron:latest
 podman push ttl.sh/kairos-custom-hadron:1h
 ```
 
 ## Troubleshooting
-
 
 ### Push to local registry fails
 
@@ -296,18 +281,14 @@ curl http://localhost:5000/v2/
 If not, restart the local infrastructure:
 
 ```bash
-cd ~/github/cfgmgmtcamp-kairos-workshop/macos/local-infra
+cd macos/local-infra
 podman-compose up -d registry
 ```
 
 ### AuroraBoot can't reach local registry
-## Not working at the moment as AuroraBoot doesn’t support insecure registry
-## Having working certificate trusted by many containers would be too much a load for a workshop.
-Make sure you use `--network local-infra_default` and the container name `kairos-registry:5000` (not `localhost:5000`). Check the network name:
 
-```bash
-podman network ls | grep local-infra
-```
+> [!NOTE]
+> AuroraBoot doesn't support insecure registries. Use `ttl.sh` as a workaround for ISO builds.
 
 ### ISO build fails
 
