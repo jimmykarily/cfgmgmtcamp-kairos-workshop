@@ -30,22 +30,12 @@ brew install hudochenkov/sshpass/sshpass
 
 Since MacOS on Apple Silicon is ARM-based, download the **aarch64** (arm64) ISO:
 
-- [kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (514M) — Recommended
-- [kairos-hadron-0.0.1-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso](https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-hadron-0.0.1-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso) (357M) — Smaller, minimal image
+[See](../stage-1.md#get-a-pre-built-iso)
 
 ```bash
 # Navigate to the local-infra directory
 cd macos/local-infra
 
-# Download the Fedora-based Kairos ISO
-curl -LO https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso
-
-# Rename for convenience
-mv kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso kairos.iso
-```
-
-> [!NOTE]
-> The Fedora-based image is recommended as it has better driver support for virtualized environments.
 
 ## Create and Boot the VM
 
@@ -77,16 +67,6 @@ When the VM boots, you'll see the Kairos bootloader menu:
  │ Kairos (boot local node from livecd)                                       │
  │ Kairos (debug)
 ```
-
-> [!IMPORTANT]
-> **Before selecting**, press `e` to edit the GRUB entry and **remove `nomodeset`** from the kernel command line. This is required for the display to work properly with QEMU's virtio-gpu on MacOS.
->
-> 1. Highlight **Kairos** and press `e`
-> 2. Find the line starting with `linux` 
-> 3. Remove `nomodeset` from that line
-> 4. Press `Ctrl+X` or `F10` to boot
-
-After editing, select **Kairos** or press `Ctrl+X` to boot.
 
 ## Install Kairos
 
