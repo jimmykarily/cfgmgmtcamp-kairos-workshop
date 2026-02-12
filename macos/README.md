@@ -8,7 +8,7 @@ The original workshop was designed with Linux tooling in mind (qemu with KVM, Do
 
 | Challenge | Original Approach | MacOS Solution |
 |-----------|-------------------|----------------|
-| VM creation | qemu with KVM | **QEMU with HVF** (Apple Hypervisor Framework) |
+| VM creation | qemu with KVM | **QEMU with HVF** + **vmnet-bridged** networking |
 | Container builds | Docker with socket mount | **Podman** in rootful mode |
 | Image registry | ttl.sh / quay.io | **Local registry** (localhost:5000) |
 | CI/CD pipeline | GitHub Actions | **Gitea** + **Argo Workflows** |
@@ -70,7 +70,7 @@ Use the Kairos Operator for automated, Kubernetes-native OS upgrades.
 ## Quick Start
 
 ```bash
-# 1. Start local infrastructure
+# 1. Start local infrastructure (Gitea + Registry)
 cd macos/local-infra
 podman-compose up -d
 
@@ -78,59 +78,51 @@ podman-compose up -d
 open http://localhost:3000   # Gitea
 open http://localhost:8000   # Registry UI
 
-# 3. Download a Kairos ISO
-curl -LO https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso
-mv kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso kairos.iso
-
-# 4. Start the master VM
-./start-master.sh --iso kairos.iso --create-disk
-
-# 5. (Later) Start a worker VM
-./start-worker.sh --iso kairos.iso --create-disk
+# 3. Follow Stage 1 to create your first Kairos VM
 ```
 
-### VM Launcher Scripts
-
-| Script | Purpose | Memory | SSH Port |
-|--------|---------|--------|----------|
-| `start-master.sh` | Master/control-plane VM | 8GB | 2226 |
-| `start-worker.sh` | Worker VM | 4GB | 2225 |
-
-See [local-infra/README.md](local-infra/README.md) for full script options.
+See [Stage 1](stage-1-macos.md) for detailed VM setup instructions.
 
 ## Architecture Overview
 
+With **vmnet-bridged** networking, VMs get real IP addresses from your network's DHCP server:
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         MacOS Host                               │
+│                    Local Network (e.g., 192.168.20.0/24)        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Gitea     │  │  Registry   │  │       QEMU + HVF        │  │
-│  │  :3000      │  │   :5000     │  │                         │  │
-│  │             │  │             │  │  ┌───────────────────┐  │  │
-│  │  Git repos  │  │  Kairos     │  │  │   Kairos VM       │  │  │
-│  │  for ISO    │  │  images     │  │  │   :2226 → SSH     │  │  │
-│  │  configs    │  │             │  │  │   :6444 → K8s API │  │  │
-│  └──────┬──────┘  └──────┬──────┘  │  │  ┌─────────────┐  │  │  │
-│         │                │         │  │  │    K3s      │  │  │  │
-│         │                │         │  │  │             │  │  │  │
-│         └────────────────┼─────────┼──┼──│ Argo Workflows│ │  │  │
-│                          │         │  │  └─────────────┘  │  │  │
-│                          │         │  │                   │  │  │
-│                          └─────────┼──┼───────────────────┘  │  │
-│                                    │  └───────────────────────┘  │
-│                                    │                             │
-└────────────────────────────────────┴─────────────────────────────┘
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    MacOS Host (.100)                       │  │
+│  │  ┌─────────────┐  ┌─────────────┐                         │  │
+│  │  │   Gitea     │  │  Registry   │                         │  │
+│  │  │  :3000      │  │   :5000     │                         │  │
+│  │  └─────────────┘  └─────────────┘                         │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │              QEMU + HVF (vmnet-bridged)                    │  │
+│  │                                                            │  │
+│  │  ┌─────────────────────┐  ┌─────────────────────┐         │  │
+│  │  │  Master VM (.150)   │  │  Worker VM (.151)   │         │  │
+│  │  │  K3s control-plane  │◄─│  K3s agent          │         │  │
+│  │  │  Argo Workflows     │  │                     │         │  │
+│  │  └─────────────────────┘  └─────────────────────┘         │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+SSH: ssh kairos@192.168.20.150
+K8s: kubectl --server=https://192.168.20.150:6443
 ```
 
 ## Differences from Original Workshop
 
 | Stage | Original | MacOS Track |
 |-------|----------|-------------|
-| 1 | qemu with KVM (Linux) | QEMU with HVF (Apple Hypervisor) |
+| 1 | qemu with KVM (Linux) | QEMU with HVF + vmnet-bridged |
 | 2 | Docker + ttl.sh | Podman + local registry |
 | 3 | GitHub Actions | Gitea + Argo Workflows |
 | 4 | Same | Same |
-| 5 | Same | QEMU for worker VMs |
+| 5 | Same | QEMU for worker VMs (bridged network) |
 | 6 | Same | Same |

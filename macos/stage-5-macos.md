@@ -9,81 +9,49 @@ In this stage, we'll create a 2-node Kubernetes cluster:
 - **Master node**: Control plane (existing VM from previous stages)
 - **Worker node**: New VM that joins the cluster
 
-## Challenge: QEMU Networking on MacOS
-
-QEMU's default usermode networking (`-netdev user`) isolates each VM - they can reach the internet but **cannot communicate with each other directly**.
-
-### Solution: Host Gateway for K3s API
-
-While QEMU socket multicast can provide VM-to-VM connectivity for ping/ICMP, it has issues with TLS traffic (like K3s API). The working solution is:
-
-1. **Master** exposes K3s API to the host via port forwarding (`hostfwd=tcp::6444-:6443`)
-2. **Worker** connects to master via host gateway (`10.0.2.2:6444`)
+With **vmnet-bridged** networking, both VMs get real IPs on your local network and can communicate directly.
 
 ```
-┌─────────────────┐                      ┌─────────────────┐
-│   Master VM     │◄──hostfwd:6444───────│   MacOS Host    │
-│  K3s Server     │                      │   10.0.2.2      │
-└─────────────────┘                      └────────┬────────┘
-                                                  │
-                                                  ▼
-                                         ┌─────────────────┐
-                                         │   Worker VM     │
-                                         │  K3s Agent      │
-                                         │ connects to     │
-                                         │ 10.0.2.2:6444   │
-                                         └─────────────────┘
+┌─────────────────┐         ┌─────────────────┐
+│   Master VM     │◄───────►│   Worker VM     │
+│  192.168.20.150 │  Direct │  192.168.20.151 │
+│  K3s Server     │  Access │  K3s Agent      │
+└─────────────────┘         └─────────────────┘
+         ▲                           ▲
+         │      Local Network        │
+         └───────────┬───────────────┘
+                     │
+              ┌──────┴──────┐
+              │  MacOS Host │
+              │192.168.20.x │
+              └─────────────┘
 ```
 
 ## Prerequisites
 
-- Completed [Stage 1](stage-1-macos.md) with a working Kairos VM
+- Completed [Stage 1](stage-1-macos.md) with a working Kairos master VM
 - At least 12GB RAM available (8GB master + 4GB worker)
-- A Kairos ISO for the worker (can be different from master, e.g., Fedora)
+- A Kairos ISO for the worker (can be different from master)
 - Two terminal windows
 
-## Step 1: Configure the Master Node
+## Step 1: Ensure Master is Running
 
-### Start Master VM
+If your master VM is not running, start it using the [QEMU command from Stage 1](stage-1-macos.md#post-installation-boot-from-disk).
 
-If your master VM is not running, start it with the launcher script:
+Find the master's IP:
 
 ```bash
-cd macos/local-infra
-
-# Start master (uses kairos.qcow2 by default)
-./start-master.sh
-
-# Or with a custom disk:
-./start-master.sh --disk kairos-custom.qcow2
+arp -a | grep -i "52:54"
+# Example: 192.168.20.150
 ```
 
-The script automatically forwards:
-- `2226` → SSH
-- `6444` → K3s API (6443 inside VM)
-- `8080` → Web installer
+## Step 2: Get the K3s Token
 
-### Configure K3s to Accept External Connections
-
-SSH into master and configure K3s TLS SANs:
+SSH into the master and get the join token:
 
 ```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+ssh kairos@192.168.20.150
 
-# Add TLS SANs for external access
-echo 'tls-san:
-  - 10.0.2.2
-  - 10.0.2.15
-  - 127.0.0.1
-  - localhost' | sudo tee /etc/rancher/k3s/config.yaml
-
-# Restart K3s to regenerate certificates
-sudo systemctl restart k3s
-```
-
-### Get the K3s Token
-
-```bash
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
@@ -94,136 +62,99 @@ Example:
 K1083a223a964a715d8263ec2e81f8183d704d4b7933123f42def852bbea0becd2c::server:1cd63fa47a5805a4c6b994fa7a85c500
 ```
 
-### Verify K3s API is Accessible
+## Step 3: Start the Worker VM
 
-From your **Mac host**:
-
-```bash
-curl -sk https://localhost:6444/version
-```
-
-Should return a JSON response (401 Unauthorized is OK - means API is reachable).
-
-## Step 2: Start the Worker Node
-
-### Download Worker ISO (if needed)
-
-If you want to use a different OS for the worker (e.g., Fedora):
-
-```bash
-cd macos/local-infra
-
-# Download Fedora-based Kairos ISO
-curl -LO https://github.com/kairos-io/kairos/releases/download/v3.7.1/kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso
-mv kairos-fedora-40-standard-arm64-generic-v3.7.1-k3sv1.35.0+k3s1.iso kairos-fedora.iso
-```
-
-### Start Worker VM
+### Create Worker Disk
 
 In a **new terminal**:
 
 ```bash
 cd macos/local-infra
-
-# Create disk and boot from ISO
-./start-worker.sh --iso kairos-fedora.iso --create-disk
-
-# Or use existing ISO:
-./start-worker.sh --iso kairos.iso --create-disk
+qemu-img create -f qcow2 kairos-worker.qcow2 60G
 ```
 
-The script will:
-- Create `kairos-worker.qcow2` (60GB)
-- Boot with 4GB RAM
-- Forward SSH to port 2225
+### Boot Worker VM
 
-### Install Worker
+Use the [QEMU command from Stage 1](stage-1-macos.md#2-boot-from-iso) with these changes:
+- `-m 4096` (workers need less RAM)
+- `-drive file=kairos-worker.qcow2,if=virtio,format=qcow2`
+- `-cdrom kairos.iso` (same ISO as master, or a different flavor)
 
-1. At the GRUB menu, select **Kairos** (remove `nomodeset` if display issues)
+## Step 4: Install Worker
 
-2. Once booted to live environment, SSH in:
+1. At GRUB menu, select **Kairos**
+
+2. Find worker's IP and SSH in:
    ```bash
-   sshpass -p 'kairos' ssh -p 2225 -o StrictHostKeyChecking=no kairos@localhost
+   # From Mac - find the new VM's IP
+   arp -a | grep -i "52:54"
+   # Example: 192.168.20.151 (different from master)
+
+   ssh kairos@192.168.20.151
+   # Password: kairos
    ```
 
-3. Verify connectivity to master's K3s API via host:
+3. Verify connectivity to master:
    ```bash
-   curl -sk https://10.0.2.2:6444/cacerts | head -3
+   # Replace with your master's IP
+   curl -sk https://192.168.20.150:6443/cacerts | head -3
    ```
    Should show certificate data.
 
-4. Create and apply the cloud-config:
+4. Create the worker cloud-config (note: uses `k3s-agent` instead of `k3s`, see [Stage 1](stage-1-macos.md#3-create-configuration) for the master config):
    ```bash
    cat > config.yaml <<'EOF'
    #cloud-config
-   
    hostname: kairos-worker
-   
+
    users:
      - name: kairos
        passwd: kairos
        groups:
          - admin
-   
+
    k3s-agent:
      enabled: true
      args:
        - --with-node-id
      env:
        K3S_TOKEN: "<PASTE_TOKEN_HERE>"
-       K3S_URL: "https://10.0.2.2:6444"
+       K3S_URL: "https://<MASTER_IP>:6443"
    EOF
    ```
 
    > [!IMPORTANT]
-   > Replace `<PASTE_TOKEN_HERE>` with the token from the master node.
+   > - Replace `<PASTE_TOKEN_HERE>` with the token from master
+   > - Replace `<MASTER_IP>` with your master's actual IP (e.g., `192.168.20.150`)
 
 5. Install:
    ```bash
    sudo kairos-agent manual-install config.yaml
    ```
 
-6. After installation completes, the VM will reboot automatically.
+6. The VM will reboot after installation.
 
-### Post-Install: Restart Worker from Disk
+## Step 5: Boot Worker from Disk
 
-After the reboot, restart the worker without the ISO:
+After reboot, start the worker without ISO using the [QEMU command from Stage 1](stage-1-macos.md#post-installation-boot-from-disk) with:
+- `-m 4096`
+- `-drive file=kairos-worker.qcow2,if=virtio,format=qcow2`
 
-```bash
-cd macos/local-infra
-./start-worker.sh
-```
-
-### Post-Install: Configure K3s Agent (if needed)
-
-If the K3s agent doesn't start automatically with the right config, manually create the environment file:
-
-```bash
-sshpass -p 'kairos' ssh -p 2225 kairos@localhost
-
-# Create K3s agent environment file
-echo 'K3S_URL=https://10.0.2.2:6444
-K3S_TOKEN=<PASTE_TOKEN_HERE>' | sudo tee /etc/systemd/system/k3s-agent.service.env
-
-sudo systemctl daemon-reload
-sudo systemctl restart k3s-agent
-```
-
-## Step 3: Verify the Cluster
+## Step 6: Verify the Cluster
 
 On the **master node**:
 
 ```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+ssh kairos@192.168.20.150
 
 sudo kubectl get nodes -o wide
 ```
 
 Expected output:
 ```
-NAME                     STATUS   ROLES           AGE     VERSION        INTERNAL-IP     EXTERNAL-IP   OS-IMAGE                            KERNEL-VERSION            CONTAINER-RUNTIME
-kairos-479e              Ready    control-plane   3d12h   v1.35.0+k3s3   10.0.2.15       <none>        Ubuntu 22.04.5 LTS                  6.8.0-94-generic          containerd://2.1.5-k3s1
-kairos-worker-ec386546   Ready    <none>          5m      v1.35.0+k3s1   10.0.2.15       <none>        Fedora Linux 40 (Container Image)   6.14.5-100.fc40.aarch64   containerd://2.1.5-k3s1
+NAME                     STATUS   ROLES           AGE     VERSION        INTERNAL-IP      OS-IMAGE
+kairos-xxxx              Ready    control-plane   1d      v1.35.0+k3s1   192.168.20.150   Ubuntu 22.04.5 LTS
+kairos-worker-xxxx       Ready    <none>          5m      v1.35.0+k3s1   192.168.20.151   Fedora Linux 40
 ```
 
 ### Test Workload Distribution
@@ -238,53 +169,9 @@ sudo kubectl get pods -o wide
 
 You should see pods scheduled on both nodes.
 
-## Multiple Workers
+## Adding More Workers
 
-You can add more workers using the `--name` and `--ssh-port` options:
-
-```bash
-# Second worker
-./start-worker.sh --name worker2 --ssh-port 2227 --iso kairos-fedora.iso --create-disk
-
-# Third worker
-./start-worker.sh --name worker3 --ssh-port 2228 --iso kairos-fedora.iso --create-disk
-```
-
-Each worker will have its own disk (`kairos-worker2.qcow2`, `kairos-worker3.qcow2`) and SSH port.
-
-## Script Options Reference
-
-### Master (`start-master.sh`)
-
-```bash
-./start-master.sh [OPTIONS]
-
-Options:
-  --disk PATH       Disk image (default: kairos.qcow2)
-  --iso PATH        Boot from ISO
-  --create-disk     Create disk if missing
-  --memory MB       Memory (default: 8192)
-  --cpus N          CPUs (default: 2)
-
-Ports: SSH=2226, K3s=6444, Web=8080
-```
-
-### Worker (`start-worker.sh`)
-
-```bash
-./start-worker.sh [OPTIONS]
-
-Options:
-  --disk PATH       Disk image (default: kairos-worker.qcow2)
-  --iso PATH        Boot from ISO
-  --create-disk     Create disk if missing
-  --memory MB       Memory (default: 4096)
-  --cpus N          CPUs (default: 2)
-  --ssh-port PORT   SSH port (default: 2225)
-  --name NAME       Worker name (default: worker)
-
-Port: SSH=2225 (or custom)
-```
+For additional workers, repeat Steps 3-5 with different disk names (e.g., `kairos-worker2.qcow2`). Each worker will get a unique IP from DHCP.
 
 ## Troubleshooting
 
@@ -292,43 +179,34 @@ Port: SSH=2225 (or custom)
 
 1. Check K3s agent logs:
    ```bash
-   sshpass -p 'kairos' ssh -p 2225 kairos@localhost
+   ssh kairos@192.168.20.151
    sudo journalctl -u k3s-agent -f
    ```
 
-2. Verify connectivity to master API:
+2. Verify connectivity to master:
    ```bash
-   curl -sk https://10.0.2.2:6444/cacerts
+   curl -sk https://192.168.20.150:6443/cacerts
    ```
 
-3. Check environment file exists:
+3. Check the agent environment:
    ```bash
    sudo cat /etc/systemd/system/k3s-agent.service.env
    ```
 
-### "Connection refused" to master API
+### Worker can't reach master
 
-Ensure master VM is running with port forwarding:
-
-```bash
-# Check QEMU process has port forwarding
-ps aux | grep qemu | grep 6444
-```
-
-If missing, restart master with the script (which includes proper forwarding).
-
-### Worker shows wrong K3S_URL in logs
-
-The K3s agent may have cached old config. Clear it:
+Verify both VMs are on the same network:
 
 ```bash
-sudo rm -rf /var/lib/rancher/k3s/agent
-sudo systemctl restart k3s-agent
+# From worker
+ping 192.168.20.150
 ```
+
+If ping fails, check both VMs are using `vmnet-bridged` with the same interface.
 
 ### TLS certificate errors
 
-Regenerate master certificates with correct SANs:
+The master's K3s certificates include its IP by default. If you changed the master's IP, regenerate certs:
 
 ```bash
 # On master
@@ -336,30 +214,40 @@ sudo rm /var/lib/rancher/k3s/server/tls/serving-kube-apiserver.*
 sudo systemctl restart k3s
 ```
 
+### Wrong K3S_URL in agent config
+
+If the agent has wrong URL cached:
+
+```bash
+# On worker
+sudo rm -rf /var/lib/rancher/k3s/agent
+sudo systemctl restart k3s-agent
+```
+
 ## Cleanup
 
-To remove the worker and return to single-node:
+To remove a worker:
 
 ```bash
 # On master
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
-sudo kubectl delete node kairos-worker-xxxxx
+ssh kairos@192.168.20.150
+sudo kubectl delete node kairos-worker-xxxx
 
-# Stop worker VM (close QEMU window or Ctrl+C)
+# Stop worker VM (close QEMU window)
 
-# Optionally remove the disk
+# Remove disk
 cd macos/local-infra
 rm kairos-worker.qcow2
 ```
 
 ## Summary
 
-| Node | Role | SSH Port | Memory | Script |
-|------|------|----------|--------|--------|
-| Master | control-plane | 2226 | 8GB | `./start-master.sh` |
-| Worker | worker | 2225 | 4GB | `./start-worker.sh` |
+| Node | Role | IP (example) | Memory |
+|------|------|--------------|--------|
+| Master | control-plane | 192.168.20.150 | 8GB |
+| Worker | worker | 192.168.20.151 | 4GB |
 
-Key insight: QEMU socket multicast has issues with TLS traffic, so we use the **host gateway** (`10.0.2.2`) with port forwarding for K3s API communication.
+With vmnet-bridged networking, VMs get real IPs and can communicate directly - no port forwarding or host gateway workarounds needed.
 
 ## Next Steps
 

@@ -1,6 +1,6 @@
 # Stage 1: Deploying a Single Node Cluster (MacOS)
 
-This guide walks through deploying a Kairos single-node Kubernetes cluster on MacOS using **QEMU**.
+This guide walks through deploying a Kairos single-node Kubernetes cluster on MacOS using **QEMU** with **vmnet-bridged** networking.
 
 Docs:
   - [Manual Single-Node Cluster](https://kairos.io/docs/examples/single-node/)
@@ -20,44 +20,87 @@ qemu-system-aarch64 --version
 qemu-img --version
 ```
 
-### Install sshpass (optional, for easier SSH)
+### Identify Your Network Interface
+
+Find the network interface your Mac uses to connect to the network:
 
 ```bash
-brew install hudochenkov/sshpass/sshpass
+# List interfaces with IP addresses
+ifconfig | grep -E "^en|inet "
+
+# Typically en0 for built-in Ethernet/WiFi
+ifconfig en0 | grep "inet "
 ```
+
+You'll use this interface (e.g., `en0`) for bridged networking.
 
 ## Get a Pre-built ISO
 
-Since MacOS on Apple Silicon is ARM-based, download the **aarch64** (arm64) ISO:
+Since MacOS on Apple Silicon is ARM-based, download an **aarch64** (arm64) ISO from the [Kairos releases page](https://github.com/kairos-io/kairos/releases).
 
-[See](../stage-1.md#get-a-pre-built-iso)
+### Choosing an Image Flavor
 
-```bash
-# Navigate to the local-infra directory
-cd macos/local-infra
+Kairos offers several base image flavors:
 
+| Flavor | Base | Size | Best For |
+|--------|------|------|----------|
+| **Ubuntu** | Ubuntu 22.04/24.04 | ~1.5GB | Familiar environment, wide package availability |
+| **Fedora** | Fedora 40 | ~1.5GB | Familiar environment, newer packages |
+| **Hadron** | Minimal (Alpine-based) | ~500MB | Production, minimal attack surface, faster downloads |
+
+**Ubuntu/Fedora** are full-featured distributions with familiar package managers (`apt`/`dnf`). Choose either based on your preference - they have equivalent support in Kairos.
+
+**Hadron** is Kairos's minimal image, purpose-built for immutable infrastructure. It's smaller and faster but has fewer pre-installed tools. Great for production; for this workshop, Ubuntu or Fedora are easier to work with.
+
+Download an ISO and place it in `macos/local-infra/kairos.iso`.
 
 ## Create and Boot the VM
 
-We provide helper scripts to manage QEMU VMs easily. See [local-infra/README.md](local-infra/README.md) for details.
+### 1. Create a Disk Image
 
-### 1. Boot the VM with ISO
+```bash
+cd macos/local-infra
+qemu-img create -f qcow2 kairos.qcow2 60G
+```
+
+### 2. Boot from ISO
+
+> [!IMPORTANT]
+> `vmnet-bridged` requires **sudo** to access the macOS networking stack.
 
 ```bash
 cd macos/local-infra
 
-# Create disk and boot from ISO for fresh install
-./start-master.sh --iso kairos.iso --create-disk
+sudo qemu-system-aarch64 \
+    -machine virt,accel=hvf,highmem=on \
+    -cpu host \
+    -smp 2 \
+    -m 8192 \
+    -bios $(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd \
+    -device virtio-gpu-pci \
+    -display default,show-cursor=on \
+    -device qemu-xhci \
+    -device usb-kbd \
+    -device usb-tablet \
+    -device virtio-net-pci,netdev=net0 \
+    -netdev vmnet-bridged,id=net0,ifname=en0 \
+    -drive file=kairos.qcow2,if=virtio,format=qcow2 \
+    -cdrom kairos.iso \
+    -boot menu=on
 ```
 
-This will:
-- Create a 60GB disk image (`kairos.qcow2`)
-- Boot from the ISO with 8GB RAM
-- Forward ports: SSH (2226), K3s API (6444), Web Installer (8080)
+**Key flags:**
 
-### 2. Boot Menu and GRUB Configuration
+| Flag | Purpose |
+|------|---------|
+| `-machine virt,accel=hvf` | Use Apple Hypervisor Framework |
+| `-m 8192` | 8GB RAM (needed for K3s + workloads) |
+| `-netdev vmnet-bridged,ifname=en0` | Bridge to host network (VM gets real IP) |
+| `-boot menu=on` | Show boot menu |
 
-When the VM boots, you'll see the Kairos bootloader menu:
+### 3. Boot Menu
+
+When the VM boots, you'll see the Kairos bootloader:
 
 ```
  │*Kairos                                                                     │
@@ -68,24 +111,38 @@ When the VM boots, you'll see the Kairos bootloader menu:
  │ Kairos (debug)
 ```
 
+Select **Kairos** to boot into the live environment.
+
 ## Install Kairos
 
-### 1. SSH into the VM
+### 1. Find the VM's IP Address
 
-Thanks to the port forwarding, you can SSH via localhost:
+The VM gets an IP from your network's DHCP server. Find it from the QEMU console:
 
 ```bash
-ssh -p 2226 kairos@localhost
-# Password: kairos
-
-# Or with sshpass:
-sshpass -p 'kairos' ssh -p 2226 -o StrictHostKeyChecking=no kairos@localhost
+# Inside the VM
+ip addr show enp0s1 | grep "inet "
 ```
 
-> [!TIP]
-> The web installer is also available at http://localhost:8080 if you prefer a GUI installation.
+Or from your Mac:
 
-### 2. Create Kairos Configuration
+```bash
+# Scan your network for QEMU MAC addresses (start with 52:54)
+arp -a | grep -i "52:54"
+```
+
+Example: `192.168.20.150`
+
+### 2. SSH into the VM
+
+```bash
+ssh kairos@192.168.20.150
+# Password: kairos
+```
+
+### 3. Create Configuration
+
+This is the basic cloud-config for a single-node K3s cluster (also used as a master in multi-node setups):
 
 ```bash
 cat > config.yaml <<EOF
@@ -104,35 +161,47 @@ k3s:
 EOF
 ```
 
-### 3. Run the Installation
+> [!TIP]
+> For worker node configuration, see [Stage 5: Multi-node Cluster](stage-5-macos.md#step-4-install-worker).
+
+### 4. Install
 
 ```bash
 sudo kairos-agent manual-install config.yaml
 ```
 
-The installation will:
-1. Partition the disk
-2. Install the immutable OS
-3. Configure K3s
-4. Reboot automatically
-
-> [!NOTE]
-> After reboot, the QEMU window may close. Restart the VM without the ISO (see next section).
+The installation will partition the disk, install the OS, and reboot.
 
 ## Post-Installation: Boot from Disk
 
-After installation, restart the VM **without** the ISO to boot from the installed disk:
+After installation, restart the VM **without** the ISO (remove the `-cdrom` and `-boot` lines):
 
 ```bash
 cd macos/local-infra
 
-# Boot from disk only (no ISO)
-./start-master.sh
+sudo qemu-system-aarch64 \
+    -machine virt,accel=hvf,highmem=on \
+    -cpu host \
+    -smp 2 \
+    -m 8192 \
+    -bios $(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd \
+    -device virtio-gpu-pci \
+    -display default,show-cursor=on \
+    -device qemu-xhci \
+    -device usb-kbd \
+    -device usb-tablet \
+    -device virtio-net-pci,netdev=net0 \
+    -netdev vmnet-bridged,id=net0,ifname=en0 \
+    -drive file=kairos.qcow2,if=virtio,format=qcow2
 ```
 
-### Boot Menu (Post-Install)
+> [!TIP]
+> **QEMU Command Reference**: This is the standard QEMU command used throughout the workshop. Other stages will reference this with minor variations:
+> - **Different disk**: Change `-drive file=<disk>.qcow2`
+> - **Add ISO**: Add `-cdrom <iso> -boot menu=on`
+> - **Worker VM (less RAM)**: Change `-m 4096`
 
-The boot menu now shows:
+### Boot Menu (Post-Install)
 
 ```
  │*Kairos                                                                     │
@@ -142,20 +211,19 @@ The boot menu now shows:
  │ Kairos remote recovery
 ```
 
-Select **Kairos** (the default) to boot into the installed system.
+Select **Kairos** to boot into the installed system.
 
 ## Verify Kubernetes
 
-### 1. SSH into the Running System
+### 1. SSH into the VM
 
 ```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+ssh kairos@192.168.20.150
 ```
 
-### 2. Check Kubernetes
+### 2. Check Cluster
 
 ```bash
-# Check nodes (as root)
 sudo kubectl get nodes
 ```
 
@@ -166,149 +234,67 @@ NAME          STATUS   ROLES                  AGE     VERSION
 kairos-xxxx   Ready    control-plane,master   2m      v1.35.0+k3s1
 ```
 
-### 3. Access Kubernetes from Mac (Optional)
+### 3. Access from Mac (Optional)
 
-Since we forwarded port 6444 → 6443, you can access the cluster directly from your Mac:
-
-```bash
-# On the VM (as root), get the kubeconfig
-sudo cat /etc/rancher/k3s/k3s.yaml
-```
-
-Copy the content and save it on your Mac:
+Copy the kubeconfig to your Mac:
 
 ```bash
-# On your Mac
-mkdir -p ~/.kube
+# From your Mac (replace IP with your VM's IP)
+scp kairos@192.168.20.150:/etc/rancher/k3s/k3s.yaml ~/.kube/config-kairos
 
-# Create the config file (paste content, change server to localhost:6444)
-cat > ~/.kube/config-kairos <<EOF
-# Paste the k3s.yaml content here
-# Change: server: https://127.0.0.1:6444
-EOF
+# Update server address to VM's IP
+sed -i '' 's/127.0.0.1/192.168.20.150/' ~/.kube/config-kairos
 
-# Test access
+# Test
 export KUBECONFIG=~/.kube/config-kairos
 kubectl get nodes
 ```
 
-## Script Options Reference
-
-The `start-master.sh` script supports various options:
-
-```bash
-./start-master.sh --help
-
-Options:
-  --disk PATH       Path to qcow2 disk image (default: kairos.qcow2)
-  --iso PATH        Path to ISO for installation (optional)
-  --create-disk     Create disk image if it doesn't exist
-  --memory MB       Memory in MB (default: 8192)
-  --cpus N          Number of CPUs (default: 2)
-
-Port Forwards:
-  SSH:           localhost:2226 -> VM:22
-  K3s API:       localhost:6444 -> VM:6443
-  Web Installer: localhost:8080 -> VM:8080
-```
-
-### Examples
-
-```bash
-# Boot existing master from disk
-./start-master.sh
-
-# Fresh install from ISO
-./start-master.sh --iso kairos.iso --create-disk
-
-# Use a custom disk image
-./start-master.sh --disk kairos-custom.qcow2
-
-# Boot custom disk with ISO attached
-./start-master.sh --disk kairos-custom.qcow2 --iso build/custom.iso
-```
-
 ## Troubleshooting
 
-### Black screen / Display not working
+### vmnet permission denied
 
-The `nomodeset` kernel parameter must be removed for QEMU's virtio-gpu to work properly:
+`vmnet-bridged` requires root privileges. Always run QEMU with `sudo`.
 
-1. At the GRUB menu, press `e` to edit the boot entry
-2. Find the line starting with `linux`
-3. Remove `nomodeset` from that line
-4. Press `Ctrl+X` or `F10` to boot
+### VM doesn't get IP
 
-> [!TIP]
-> After installation, you may need to do this on every boot until you modify the GRUB configuration permanently inside the VM.
+1. Verify the bridge interface exists: `ifconfig en0`
+2. Check your network has DHCP enabled
+3. Inside VM, try: `sudo dhclient enp0s1`
 
 ### "hvf" acceleration not available
 
-Ensure you're on Apple Silicon (M1/M2/M3/M4) and running a recent macOS version. Check:
+Ensure you're on Apple Silicon (M1/M2/M3/M4):
 
 ```bash
 sysctl kern.hv_support
 # Should return: kern.hv_support: 1
 ```
 
-### VM is very slow
-
-Make sure `accel=hvf` is in your QEMU command. The scripts handle this automatically. Without it, QEMU uses software emulation.
-
 ### SSH connection refused
 
-1. Wait for the VM to fully boot (watch the QEMU window)
-2. Verify port forwarding: `lsof -i :2226`
-3. Try connecting to the console directly via QEMU window
+Wait for the VM to fully boot. Check IP with `ip addr` from QEMU console.
 
-### SSH host key verification failed
-
-After reinstalling or rebooting the VM, the SSH host key changes. Remove the old key:
+### SSH host key changed
 
 ```bash
-ssh-keygen -R "[localhost]:2226"
-```
-
-Then reconnect:
-
-```bash
-ssh -p 2226 kairos@localhost
-```
-
-### UEFI firmware not found
-
-The scripts automatically detect QEMU's firmware location. If it fails:
-
-```bash
-# Check where QEMU installed its firmware
-ls $(brew --prefix qemu)/share/qemu/*.fd
+ssh-keygen -R 192.168.20.150
 ```
 
 ### K3s not starting
 
 ```bash
-# SSH into the VM and check logs
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
 sudo journalctl -u k3s -f
 ```
 
 ## Cleanup
 
-To start fresh:
-
 ```bash
 cd macos/local-infra
-
-# Remove disk and create new one
 rm kairos.qcow2
-
-# Then reinstall
-./start-master.sh --iso kairos.iso --create-disk
 ```
 
 ## Next Steps
-
-Once your single-node cluster is running:
 
 → [Stage 2: Build your own immutable OS](stage-2-macos.md)
 

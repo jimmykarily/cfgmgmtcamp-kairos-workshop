@@ -170,56 +170,29 @@ podman volume rm kairos-build
 
 ## Run It
 
-Use the ISO with the VM launcher scripts:
+Boot a VM with your custom ISO using the [QEMU command from Stage 1](stage-1-macos.md#2-boot-from-iso), with these changes:
 
 ```bash
 cd macos/local-infra
 
-# Option 1: Create a new disk for the custom image
-./start-master.sh --disk kairos-custom.qcow2 --iso build/*.iso --create-disk
-
-# Option 2: Use an existing disk with the new ISO
-./start-master.sh --disk kairos-custom.qcow2 --iso build/kairos-ubuntu-*.iso --create-disk
+# Create a new disk for the custom image
+qemu-img create -f qcow2 kairos-custom.qcow2 60G
 ```
 
-Follow the same installation steps from [Stage 1](stage-1-macos.md#install-kairos):
+Then run the QEMU command with:
+- `-drive file=kairos-custom.qcow2,if=virtio,format=qcow2`
+- `-cdrom build/*.iso`
+- `-boot menu=on`
+
+Follow the [Stage 1 installation steps](stage-1-macos.md#install-kairos) to install Kairos.
+
+After reboot, boot from disk (remove `-cdrom` and `-boot` flags) and verify your custom packages:
 
 ```bash
-# SSH into the custom image VM
-sshpass -p 'kairos' ssh -p 2226 -o StrictHostKeyChecking=no kairos@localhost
-
-# Create config and install
-cat > config.yaml <<EOF
-#cloud-config
-users:
-  - name: kairos
-    passwd: kairos
-    groups:
-      - admin
-
-install:
-  reboot: true
-
-k3s:
-  enabled: true
-EOF
-
-sudo kairos-agent manual-install config.yaml
-```
-
-After reboot, start the VM from disk and verify your custom packages:
-
-```bash
-# Restart from disk (no ISO)
-./start-master.sh --disk kairos-custom.qcow2
-
-# SSH in and verify
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+ssh kairos@<VM_IP>
 
 # Check that your custom packages are installed
-which vim
-which htop
-which git
+which vim htop git
 ```
 
 ## Alternative: Using Hadron (Smaller Image)

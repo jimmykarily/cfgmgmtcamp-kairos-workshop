@@ -23,35 +23,13 @@ Instead of GitHub + GitHub Actions, we use:
 - `kubectl` configured to access your K3s cluster
 
 > [!NOTE]
-> The `start-master.sh` script already allocates **8GB RAM** for the master VM, which is required for Argo Workflows and ISO builds.
-
-### Fix DNS in the VM (Important!)
-
-QEMU's usermode networking DNS (10.0.2.3) may not work reliably. Configure the VM to use public DNS:
-
-```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
-
-# Configure systemd-resolved to use Google DNS
-sudo mkdir -p /etc/systemd/resolved.conf.d
-echo -e '[Resolve]\nDNS=8.8.8.8 8.8.4.4\nFallbackDNS=1.1.1.1' | sudo tee /etc/systemd/resolved.conf.d/dns.conf
-sudo systemctl restart systemd-resolved
-
-# Verify
-cat /etc/resolv.conf  # Should show 8.8.8.8
-exit
-```
+> Your Kairos VM should have **8GB RAM** for Argo Workflows and ISO builds. If you followed Stage 1, your VM already has this configuration.
 
 ### Verify K3s Access
 
+If you haven't already set up kubectl access from your Mac, follow the [Access from Mac](stage-1-macos.md#3-access-from-mac-optional) section in Stage 1.
+
 ```bash
-# SSH into your Kairos VM and get the kubeconfig (adjust port as needed)
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost "sudo cat /etc/rancher/k3s/k3s.yaml" > ~/.kube/config-kairos
-
-# Update the server address (use port 6444 if that's what your QEMU uses)
-sed -i '' 's/127.0.0.1:6443/localhost:6444/' ~/.kube/config-kairos
-
-# Test access
 export KUBECONFIG=~/.kube/config-kairos
 kubectl get nodes
 ```
@@ -183,7 +161,7 @@ Get the NodePort:
 kubectl -n argo get svc argo-server -o jsonpath='{.spec.ports[0].nodePort}'
 ```
 
-Access via: `https://localhost:<nodeport>` (use the port forwarded via QEMU, e.g., add `-hostfwd=tcp::2746-:2746` to your QEMU command)
+Access via: `https://<KAIROS_IP>:<nodeport>` directly from your Mac.
 
 Or use port-forward:
 
@@ -215,41 +193,7 @@ cd kairos-custom
 
 ## Step 3: Add Your Dockerfile
 
-Copy the Dockerfile from Stage 2:
-
-```bash
-cat > Dockerfile <<'EOF'
-ARG BASE_IMAGE=ubuntu:22.04
-
-FROM quay.io/kairos/kairos-init:v0.7.0 AS kairos-init
-
-FROM ${BASE_IMAGE} AS base-kairos
-
-# Add your packages here
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl vim htop git && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# "Kairosify" the image
-RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
-    /kairos-init --stage install \
-      --level debug \
-      --model "generic" \
-      --trusted "false" \
-      --provider k3s \
-      --provider-k3s-version "v1.35.0+k3s1" \
-      --version "v0.0.1" \
-    && \
-    /kairos-init --stage init \
-      --level debug \
-      --model "generic" \
-      --trusted "false" \
-      --provider k3s \
-      --provider-k3s-version "v1.35.0+k3s1" \
-      --version "v0.0.1"
-EOF
-```
+Copy the Dockerfile from [Stage 2: Create the Dockerfile](stage-2-macos.md#2-create-the-dockerfile) into your repository.
 
 ## Step 4: Create the Argo Workflow
 
@@ -426,8 +370,9 @@ spec:
                 name: gitea-token
                 key: token
           - name: GITEA_HOST
-            # From inside K3s, reach host via QEMU gateway
-            value: "10.0.2.2:3000"
+            # From inside K3s, reach Gitea on your Mac
+            # Replace with your Mac's IP (run: ipconfig getifaddr en0)
+            value: "192.168.20.100:3000"
         command: ["/bin/sh", "-c"]
         args:
           - |
@@ -536,21 +481,18 @@ kubectl -n argo get events --sort-by='.lastTimestamp'
 
 ### DNS not working / "lookup registry-1.docker.io: Try again"
 
-This means the VM can't resolve DNS. Fix by configuring systemd-resolved:
-
-```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost \
-  "sudo mkdir -p /etc/systemd/resolved.conf.d && \
-   echo -e '[Resolve]\nDNS=8.8.8.8 8.8.4.4\nFallbackDNS=1.1.1.1' | sudo tee /etc/systemd/resolved.conf.d/dns.conf && \
-   sudo systemctl restart systemd-resolved"
-```
+With vmnet-bridged networking, the VM uses your network's DNS. This should work automatically. If DNS fails, SSH into the VM and check `/etc/resolv.conf`.
 
 ### Gitea not accessible from K3s
 
-The K3s cluster runs inside QEMU. To access Gitea from within the cluster, you need to:
+The K3s cluster needs to reach Gitea running on your Mac. Use your Mac's IP address:
 
-1. Use the host IP from the VM's perspective: `10.0.2.2:3000` # Could be different for yours
-2. Or configure DNS/hostnames appropriately
+```bash
+# Find your Mac's IP on the same network
+ipconfig getifaddr en0  # e.g., 192.168.20.100
+```
+
+From inside K3s pods, use `<YOUR_MAC_IP>:3000` to reach Gitea.
 
 ### Workflow stuck in Pending
 

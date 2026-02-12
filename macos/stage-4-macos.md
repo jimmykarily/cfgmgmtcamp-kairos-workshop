@@ -20,9 +20,10 @@ When you upgrade, the new image is written to the passive partition. After reboo
 
 ## Check Current Version
 
+SSH into your VM (see [Find the VM's IP Address](stage-1-macos.md#1-find-the-vms-ip-address) if needed):
+
 ```bash
-# SSH into the VM
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+ssh kairos@<VM_IP>
 
 # Check current Kairos version
 cat /etc/kairos-release | grep -E "KAIROS_VERSION|KAIROS_FLAVOR|KAIROS_SOFTWARE_VERSION"
@@ -78,7 +79,7 @@ Use the Argo workflow from Stage 3 to build a new version, then push it to a reg
 ### 1. SSH into the VM
 
 ```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+ssh kairos@<VM_IP>
 ```
 
 ### 2. Run the Upgrade
@@ -108,8 +109,8 @@ sudo reboot
 ### 4. Verify the Upgrade
 
 ```bash
-# Reconnect
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+# Reconnect (wait ~1 minute for the VM to reboot)
+ssh kairos@<VM_IP>
 
 # Check the new version
 cat /etc/kairos-release | grep -E "KAIROS_VERSION|KAIROS_FLAVOR|KAIROS_SOFTWARE_VERSION"
