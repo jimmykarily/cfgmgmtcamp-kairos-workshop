@@ -20,63 +20,13 @@ This is ideal for managing upgrades across multiple nodes in a cluster.
 - `kubectl` access from your Mac (via kubeconfig)
 - Cluster nodes can reach external registries (quay.io)
 
-### Important: Verify K3s Network Configuration
-
-> [!CAUTION]
-> **If you experimented with socket multicast networking in Stage 5** before switching to host port forwarding, your K3s configuration may have stale network settings that will cause upgrades to fail.
-
-Before proceeding with operator-based upgrades, verify your K3s configuration doesn't have outdated `node-ip` settings:
-
-```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost "sudo cat /etc/rancher/k3s/config.yaml"
-```
-
-**Problematic configuration** (contains `node-ip` pointing to old socket multicast network):
-```yaml
-tls-san:
-  - 192.168.100.1    # Old socket multicast IP
-  - 10.0.2.15
-node-ip: 192.168.100.1  # THIS WILL CAUSE K3S TO FAIL!
-```
-
-**Correct configuration** (for host port forwarding setup):
-```yaml
-tls-san:
-  - 10.0.2.2      # Host gateway (for worker access)
-  - 10.0.2.15     # VM's actual IP
-  - 127.0.0.1
-  - localhost
-```
-
-If you have the problematic configuration, fix it before proceeding:
-
-```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost "sudo tee /etc/rancher/k3s/config.yaml << 'EOF'
-tls-san:
-  - 10.0.2.2
-  - 10.0.2.15
-  - 127.0.0.1
-  - localhost
-EOF"
-
-# Restart K3s to apply the changes
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost "sudo systemctl restart k3s"
-```
-
 ### Verify Cluster Access
 
-From your Mac:
+Ensure you have kubectl access configured (see [Access from Mac](stage-1-macos.md#3-access-from-mac-optional) in Stage 1):
 
 ```bash
 export KUBECONFIG=~/.kube/config-kairos
 kubectl get nodes
-```
-
-Or from inside the master VM:
-
-```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
-sudo kubectl get nodes
 ```
 
 ## Step 1: Deploy the Kairos Operator
@@ -97,7 +47,7 @@ kubectl apply -k https://github.com/kairos-io/kairos-operator/config/default
 If your Kairos image doesn't have `git`, use `curl` instead:
 
 ```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost
+ssh kairos@<VM_IP>
 
 # Download and extract the kairos-operator
 curl -sL https://github.com/kairos-io/kairos-operator/archive/refs/heads/main.tar.gz | tar -xz -C /tmp
@@ -139,11 +89,11 @@ kubectl get nodes --show-labels | grep kairos.io/managed
 First, check what upgrade images are available for your architecture on each node:
 
 ```bash
-# On master
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost "sudo kairos-agent upgrade list-releases"
+# On master (replace <MASTER_IP> with your VM's IP)
+ssh kairos@<MASTER_IP> "sudo kairos-agent upgrade list-releases"
 
-# On worker
-sshpass -p 'kairos' ssh -p 2225 kairos@localhost "sudo kairos-agent upgrade list-releases"
+# On worker (if multi-node)
+ssh kairos@<WORKER_IP> "sudo kairos-agent upgrade list-releases"
 ```
 
 > [!NOTE]
@@ -256,8 +206,7 @@ After the upgrade completes:
 kubectl get nodes -o wide
 
 # SSH into upgraded node and verify version
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost \
-  "cat /etc/kairos-release | grep KAIROS_VERSION"
+ssh kairos@<VM_IP> "cat /etc/kairos-release | grep KAIROS_VERSION"
 ```
 
 Expected output:
@@ -354,79 +303,6 @@ The Kairos operator doesn't have automatic rollback. To rollback:
 ```bash
 kubectl delete nodeopupgrade kairos-upgrade
 ```
-
-### Upgrade Stuck with Node Cordoned (SchedulingDisabled)
-
-If your upgrade gets stuck with the node showing `Ready,SchedulingDisabled` and the NodeOpUpgrade status shows `rebootStatus: pending`, this typically means K3s crashed during the upgrade process.
-
-**Common cause**: Stale `node-ip` configuration pointing to a non-existent network interface (e.g., from previous socket multicast experiments).
-
-**Symptoms**:
-```bash
-kubectl get nodes
-# NAME          STATUS                     ROLES           AGE
-# kairos-479e   Ready,SchedulingDisabled   control-plane   3d   # Stuck!
-
-kubectl get nodeopupgrade kairos-upgrade -o yaml | grep -A5 nodeStatuses
-# nodeStatuses:
-#   kairos-479e:
-#     phase: Completed
-#     rebootStatus: pending    # Stuck waiting for reboot!
-```
-
-**Resolution**:
-
-1. **Fix the K3s configuration** (see [Prerequisites](#important-verify-k3s-network-configuration)):
-   ```bash
-   sshpass -p 'kairos' ssh -p 2226 kairos@localhost "sudo tee /etc/rancher/k3s/config.yaml << 'EOF'
-   tls-san:
-     - 10.0.2.2
-     - 10.0.2.15
-     - 127.0.0.1
-     - localhost
-   EOF"
-   
-   sshpass -p 'kairos' ssh -p 2226 kairos@localhost "sudo systemctl restart k3s"
-   ```
-
-2. **Wait for K3s to stabilize**, then clean up the stuck resources:
-   ```bash
-   # Delete the stuck upgrade
-   kubectl delete nodeopupgrade kairos-upgrade
-   
-   # Force delete the reboot pod if it exists
-   kubectl delete pod -l kairos.io/reboot=true --force --grace-period=0
-   
-   # Uncordon the node
-   kubectl uncordon kairos-479e  # Use your actual node name
-   ```
-
-3. **Restart any pods stuck in CrashLoopBackOff**:
-   ```bash
-   kubectl rollout restart deployment -n argo
-   kubectl rollout restart deployment -n kube-system
-   ```
-
-4. **Clean up error pods in operator-system**:
-   ```bash
-   kubectl -n operator-system delete pod --field-selector=status.phase=Failed
-   ```
-
-### K3s Fails to Start After Reboot
-
-If K3s won't start after an upgrade reboot, check the logs:
-
-```bash
-sshpass -p 'kairos' ssh -p 2226 kairos@localhost "sudo journalctl -u k3s --no-pager -n 50"
-```
-
-**Look for errors like**:
-```
-level=error msg="Sending HTTP/2.0 503 response..."
-external host was not specified, using 192.168.100.1  # Wrong IP!
-```
-
-This indicates K3s is trying to use an IP that doesn't exist on any interface. Fix the `/etc/rancher/k3s/config.yaml` as described above.
 
 ### Upgrade Completed but rebootStatus Still "pending"
 
