@@ -14,7 +14,7 @@ Add some packages to the Dockerfile below and then build the image (better keep
 ```Dockerfile
 ARG BASE_IMAGE=ubuntu:22.04
 
-FROM quay.io/kairos/kairos-init:v0.6.2 AS kairos-init
+FROM quay.io/kairos/kairos-init:v0.7.0 AS kairos-init
 
 FROM ${BASE_IMAGE} AS base-kairos
 
@@ -92,16 +92,6 @@ docker build --progress plain -t kairos-custom:latest .
 
 ## Alternative: Using Podman on MacOS
 
-Restart the Podman machine with rootful access.
-
-```bash
-podman machine stop
-podman machine set --rootful
-podman machine start
-```
-
-If you have build the `kairos-custom` Image before, you have to rebuild it after switching to rootful as seen above.
-
 Since Podman has issues using the local image, we will temporarily push it to a public registry.
 
 ```bash
@@ -112,7 +102,13 @@ podman push ttl.sh/kairos-custom:24h
 Then we can use the public images to build the ISO
 
 ```bash
-mkdir build && sudo podman run -it --rm -v /var/run/docker.sock:/var/run/docker.sock:Z -v $PWD/build:/result quay.io/kairos/auroraboot:latest build-iso --output /result ttl.sh/kairos-custom:24h
+podman volume create kairos-build
+mkdir build && sudo podman run -it --rm -v kairos-build:/result quay.io/kairos/auroraboot:latest build-iso --output /result ttl.sh/kairos-custom:24h
+# Now let’s fetch the iso from the volume
+podman run --rm \                 
+  -v kairos-build:/source:ro \
+  -v ./build:/dest \
+  alpine sh -c "cp /source/*.iso /dest/ && ls -lh /dest/"
 ```
 
 ## Create an ISO using AuroraBoot
